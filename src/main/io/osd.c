@@ -559,8 +559,14 @@ static uint8_t osdIncElementIndex(uint8_t elementIndex)
 void osdDrawNextElement(void)
 {
     static uint8_t elementIndex = 0;
+    uint8_t lastIndex = 0;
+
+    lastIndex = elementIndex;
+
     while (osdDrawSingleElement(elementIndex) == false) {
         elementIndex = osdIncElementIndex(elementIndex);
+        if (lastIndex == elementIndex) //this is to exit function when user have nothing selected to draw
+            break;
     }
     elementIndex = osdIncElementIndex(elementIndex);
 }
