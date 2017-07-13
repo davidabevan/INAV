@@ -1022,6 +1022,7 @@ static bool mspFcProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst, mspPostProcessFn
         for (int i = 0; i < OSD_ITEM_COUNT; i++) {
             sbufWriteU16(dst, osdConfig()->item_pos[i]);
         }
+        max7456ClearScreen(); //clear screan to force refresh
 #else
         sbufWriteU8(dst, 0); // OSD not supported
 #endif
