@@ -407,13 +407,13 @@ static bool osdDrawSingleElement(uint8_t item)
 
             for (int x = -4; x <= 4; x++) {
                 // clear the y area before writing the new horizon character
-                for (int y = 0; y <= 7; y++) {
+                for (int y = 0; y <= 8; y++) {
                     max7456WriteChar(elemPosX + x, elemPosY + y, 0x20);
                 }
                 int y = (rollAngle * x) / 64;
                 y -= pitchAngle;
                 // y += 41; // == 4 * 9 + 5
-                if (y >= 0 && y <= 81) {
+                if (y >= 0 && y < 81) {
                     max7456WriteChar(elemPosX + x, elemPosY + (y / 9), (SYM_AH_BAR9_0 + (y % 9)));
                 }
             }
