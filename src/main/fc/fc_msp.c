@@ -103,9 +103,6 @@
 extern timeDelta_t cycleTime; // FIXME dependency on mw.c
 extern uint16_t rssi; // FIXME dependency on mw.c
 
-static const char * const flightControllerIdentifier = INAV_IDENTIFIER; // 4 UPPER CASE alpha numeric characters that identify the flight controller.
-static const char * const boardIdentifier = TARGET_BOARD_IDENTIFIER;
-
 typedef struct box_e {
     const uint8_t boxId;            // see boxId_e
     const char *boxName;            // GUI-readable box name
@@ -535,65 +532,13 @@ static void serializeDataflashReadReply(sbuf_t *dst, uint32_t address, uint16_t 
 static bool mspFcProcessOutCommand(uint16_t cmdMSP, sbuf_t *dst, mspPostProcessFnPtr *mspPostProcessFn)
 {
     switch (cmdMSP) {
-    case MSP_API_VERSION:
-        sbufWriteU8(dst, MSP_PROTOCOL_VERSION);
-        sbufWriteU8(dst, API_VERSION_MAJOR);
-        sbufWriteU8(dst, API_VERSION_MINOR);
-        break;
-
-    case MSP_FC_VARIANT:
-        sbufWriteData(dst, flightControllerIdentifier, FLIGHT_CONTROLLER_IDENTIFIER_LENGTH);
-        break;
-
-    case MSP_FC_VERSION:
-        sbufWriteU8(dst, FC_VERSION_MAJOR);
-        sbufWriteU8(dst, FC_VERSION_MINOR);
-        sbufWriteU8(dst, FC_VERSION_PATCH_LEVEL);
-        break;
-
-    case MSP_BOARD_INFO:
-        sbufWriteData(dst, boardIdentifier, BOARD_IDENTIFIER_LENGTH);
-#ifdef USE_HARDWARE_REVISION_DETECTION
-        sbufWriteU16(dst, hardwareRevision);
-#else
-        sbufWriteU16(dst, 0); // No other build targets currently have hardware revision detection.
-#endif
-        break;
-
-    case MSP_BUILD_INFO:
-        sbufWriteData(dst, buildDate, BUILD_DATE_LENGTH);
-        sbufWriteData(dst, buildTime, BUILD_TIME_LENGTH);
-        sbufWriteData(dst, shortGitRevision, GIT_SHORT_REVISION_LENGTH);
-        break;
-
     // DEPRECATED - Use MSP_API_VERSION
-    case MSP_IDENT:
-        sbufWriteU8(dst, MW_VERSION);
-        sbufWriteU8(dst, mixerConfig()->mixerMode);
-        sbufWriteU8(dst, MSP_PROTOCOL_VERSION);
-        sbufWriteU32(dst, CAP_PLATFORM_32BIT | CAP_DYNBALANCE | CAP_FLAPS | CAP_NAVCAP | CAP_EXTAUX); // "capability"
-        break;
-
-#ifdef HIL
-    case MSP_HIL_STATE:
-        sbufWriteU16(dst, hilToSIM.pidCommand[ROLL]);
-        sbufWriteU16(dst, hilToSIM.pidCommand[PITCH]);
-        sbufWriteU16(dst, hilToSIM.pidCommand[YAW]);
-        sbufWriteU16(dst, hilToSIM.pidCommand[THROTTLE]);
-        break;
-#endif
-
-    case MSP_SENSOR_STATUS:
-        sbufWriteU8(dst, isHardwareHealthy() ? 1 : 0);
-        sbufWriteU8(dst, getHwGyroStatus());
-        sbufWriteU8(dst, getHwAccelerometerStatus());
-        sbufWriteU8(dst, getHwCompassStatus());
-        sbufWriteU8(dst, getHwBarometerStatus());
-        sbufWriteU8(dst, getHwGPSStatus());
-        sbufWriteU8(dst, getHwRangefinderStatus());
-        sbufWriteU8(dst, getHwPitotmeterStatus());
-        sbufWriteU8(dst, HW_SENSOR_NONE);                   // Optical flow
-        break;
+    // case MSP_IDENT:
+        // sbufWriteU8(dst, MW_VERSION);
+        // sbufWriteU8(dst, mixerConfig()->mixerMode);
+        // sbufWriteU8(dst, MSP_PROTOCOL_VERSION);
+        // sbufWriteU32(dst, CAP_PLATFORM_32BIT | CAP_DYNBALANCE | CAP_FLAPS | CAP_NAVCAP | CAP_EXTAUX); // "capability"
+        // break;
 
     case MSP_ACTIVEBOXES:
         {
@@ -671,18 +616,6 @@ static bool mspFcProcessOutCommand(uint16_t cmdMSP, sbuf_t *dst, mspPostProcessF
         }
         break;
 #endif
-
-    case MSP_MOTOR:
-        for (unsigned i = 0; i < 8; i++) {
-            sbufWriteU16(dst, i < MAX_SUPPORTED_MOTORS ? motor[i] : 0);
-        }
-        break;
-
-    case MSP_RC:
-        for (int i = 0; i < rxRuntimeConfig.channelCount; i++) {
-            sbufWriteU16(dst, rcData[i]);
-        }
-        break;
 
     case MSP_ATTITUDE:
         sbufWriteU16(dst, attitude.values.roll);
@@ -1319,24 +1252,6 @@ static bool mspFcProcessOutCommand(uint16_t cmdMSP, sbuf_t *dst, mspPostProcessF
 #endif
         break;
 
-    case MSP_RTC:
-        {
-            int32_t seconds = 0;
-            uint16_t millis = 0;
-            rtcTime_t t;
-            if (rtcGet(&t)) {
-                seconds = rtcTimeGetSeconds(&t);
-                millis = rtcTimeGetMillis(&t);
-            }
-            sbufWriteU32(dst, (uint32_t)seconds);
-            sbufWriteU16(dst, millis);
-        }
-        break;
-
-    case MSP2_COMMON_TZ:
-        sbufWriteU16(dst, (uint16_t)timeConfig()->tz_offset);
-        break;
-
     default:
         return false;
     }
@@ -1438,10 +1353,6 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
     case MSP_SET_ARMING_CONFIG:
         armingConfigMutable()->auto_disarm_delay = sbufReadU8(src);
         armingConfigMutable()->disarm_kill_switch = sbufReadU8(src);
-        break;
-
-    case MSP_SET_LOOP_TIME:
-        gyroConfigMutable()->looptime = sbufReadU16(src);
         break;
 
     case MSP_SET_PID_CONTROLLER:
@@ -2120,22 +2031,6 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
         break;
 #endif
 
-    case MSP_SET_RTC:
-        {
-            // Use seconds and milliseconds to make senders
-            // easier to implement. Generating a 64 bit value
-            // might not be trivial in some platforms.
-            int32_t secs = (int32_t)sbufReadU32(src);
-            uint16_t millis = sbufReadU16(src);
-            rtcTime_t t = rtcTimeMake(secs, millis);
-            rtcSet(&t);
-        }
-        break;
-
-    case MSP2_COMMON_SET_TZ:
-        timeConfigMutable()->tz_offset = (int16_t)sbufReadU16(src);
-        break;
-
     default:
         return MSP_RESULT_ERROR;
     }
@@ -2147,35 +2042,54 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
  */
 mspResult_e mspFcProcessCommand(mspPacket_t *cmd, mspPacket_t *reply, mspPostProcessFnPtr *mspPostProcessFn)
 {
-    int ret = MSP_RESULT_ACK;
-    sbuf_t *dst = &reply->buf;
-    sbuf_t *src = &cmd->buf;
-    const uint16_t cmdMSP = cmd->cmd;
-    // initialize reply by default
-    reply->cmd = cmd->cmd;
+    mspCommandResult_t res = mspFcProcessAPICommand(cmd, reply, mspPostProcessFn);
 
-    if (mspFcProcessOutCommand(cmdMSP, dst, mspPostProcessFn)) {
-        ret = MSP_RESULT_ACK;
+    switch (res) {
+        case MSP_RES_NOT_IMPLEMENTED:
+        {
+            int ret = MSP_RESULT_ACK;
+            sbuf_t *dst = &reply->buf;
+            sbuf_t *src = &cmd->buf;
+            const uint8_t cmdMSP = cmd->cmd;
+            // initialize reply by default
+            reply->cmd = cmd->cmd;
+
+            if (mspFcProcessOutCommand(cmdMSP, dst, mspPostProcessFn)) {
+                ret = MSP_RESULT_ACK;
 #ifdef USE_SERIAL_4WAY_BLHELI_INTERFACE
-    } else if (cmdMSP == MSP_SET_4WAY_IF) {
-        mspFc4waySerialCommand(dst, src, mspPostProcessFn);
-        ret = MSP_RESULT_ACK;
+            } else if (cmdMSP == MSP_SET_4WAY_IF) {
+                mspFc4waySerialCommand(dst, src, mspPostProcessFn);
+                ret = MSP_RESULT_ACK;
 #endif
 #ifdef NAV
-    } else if (cmdMSP == MSP_WP) {
-        mspFcWaypointOutCommand(dst, src);
-        ret = MSP_RESULT_ACK;
+            } else if (cmdMSP == MSP_WP) {
+                mspFcWaypointOutCommand(dst, src);
+                ret = MSP_RESULT_ACK;
 #endif
 #ifdef USE_FLASHFS
-    } else if (cmdMSP == MSP_DATAFLASH_READ) {
-        mspFcDataFlashReadCommand(dst, src);
-        ret = MSP_RESULT_ACK;
+            } else if (cmdMSP == MSP_DATAFLASH_READ) {
+                mspFcDataFlashReadCommand(dst, src);
+                ret = MSP_RESULT_ACK;
 #endif
-    } else {
-        ret = mspFcProcessInCommand(cmdMSP, src);
+            } else {
+                ret = mspFcProcessInCommand(cmdMSP, src);
+            }
+            reply->result = ret;
+            return ret;
+        }
+        break;
+
+        case MSP_RES_SUCCESS:
+            return MSP_RESULT_ACK;
+
+        case MSP_RES_SUCCESS_NO_REPLY:
+            return MSP_RESULT_NO_REPLY;
+
+        case MSP_RES_ERROR:
+            return MSP_RESULT_ERROR;
     }
-    reply->result = ret;
-    return ret;
+
+    return MSP_RESULT_NO_REPLY;
 }
 
 /*

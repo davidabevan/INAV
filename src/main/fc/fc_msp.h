@@ -19,5 +19,14 @@
 
 #include "msp/msp.h"
 
+/* MSP handler result code */
+typedef enum {
+    MSP_RES_NOT_IMPLEMENTED,
+    MSP_RES_SUCCESS,
+    MSP_RES_SUCCESS_NO_REPLY,
+    MSP_RES_ERROR,
+} mspCommandResult_t;
+
 void mspFcInit(void);
 mspResult_e mspFcProcessCommand(mspPacket_t *cmd, mspPacket_t *reply, mspPostProcessFnPtr *mspPostProcessFn);
+mspCommandResult_t mspFcProcessAPICommand(mspPacket_t *cmd, mspPacket_t *reply, mspPostProcessFnPtr *mspPostProcessFn);
