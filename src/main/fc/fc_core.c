@@ -320,7 +320,7 @@ void annexCode(void)
         rcCmd.stick[THROTTLE] = scaleRangef(throttleValue, rxConfig()->mincheck, PWM_RANGE_MAX, -1.0f, 1.0f);
 
         // Compute command for throttle - compress throttle to [0;1] range for non-3D mode
-        rcCmd.command[THROTTLE] = feature(FEATURE_3D) ? rcCmd.stick[THROTTLE] : scaleRangef(rcCmd.stick[THROTTLE], -1.0f, 1.0f, 0.0f, 1.0f)
+        rcCmd.command[THROTTLE] = feature(FEATURE_3D) ? rcCmd.stick[THROTTLE] : scaleRangef(rcCmd.stick[THROTTLE], -1.0f, 1.0f, 0.0f, 1.0f);
 
 
         // Signal updated rcCommand values to Failsafe system
