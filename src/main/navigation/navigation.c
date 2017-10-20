@@ -53,6 +53,8 @@
 #include "sensors/acceleration.h"
 #include "sensors/boardalignment.h"
 
+#define RTH_CLIMB_TIMEOUT_MS (10 * 1000) // 10 seconds
+#define RTH_CLIMB_TIMEOUT_MIN_ZSPEED (10) // 10cm/s in either direction
 
 /*-----------------------------------------------------------
  * Compatibility for home position
@@ -837,6 +839,9 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_RTH_INITIALIZE(navigati
 
             setDesiredPosition(&targetHoldPos, posControl.actualState.yaw, NAV_POS_UPDATE_XY | NAV_POS_UPDATE_HEADING);
 
+            // Will start climb phase, initialize timer
+            posControl.rthClimbStartedTimeMs = millis();
+
             return NAV_FSM_EVENT_SUCCESS;   // NAV_STATE_RTH_CLIMB_TO_SAFE_ALT
         }
     }
@@ -864,7 +869,10 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_RTH_CLIMB_TO_SAFE_ALT(n
                             MAX(100.0f, 0.10f * ABS(posControl.homeWaypointAbove.pos.V.Z - posControl.homePosition.pos.V.Z)) :  // Airplane: 10% of target altitude but no less than 1m
                             MAX( 50.0f, 0.05f * ABS(posControl.homeWaypointAbove.pos.V.Z - posControl.homePosition.pos.V.Z));   // Copters:   5% of target altitude but no less than 50cm
 
-        if (((posControl.actualState.pos.V.Z - posControl.homeWaypointAbove.pos.V.Z) > -rthAltitudeMargin) || (!navConfig()->general.flags.rth_climb_first)) {
+        if (((posControl.actualState.pos.V.Z - posControl.homeWaypointAbove.pos.V.Z) > -rthAltitudeMargin) // we're at target altitude or very close
+            || (!navConfig()->general.flags.rth_climb_first) // user has disabled climb phase
+            || ((millis() - posControl.rthClimbStartedTimeMs) > RTH_CLIMB_TIMEOUT_MS && ABS(getEstimatedActualVelocity(Z)) < RTH_CLIMB_TIMEOUT_MIN_ZSPEED)) { // climb phase is taking long and we don't have significant vertical speed
+
             // Delayed initialization for RTH sanity check on airplanes - allow to finish climb first as it can take some distance
             if (STATE(FIXED_WING)) {
                 initializeRTHSanityChecker(&posControl.actualState.pos);

@@ -267,6 +267,7 @@ typedef struct {
 
     uint32_t                    lastValidPositionTimeMs;
     uint32_t                    lastValidAltitudeTimeMs;
+    uint32_t                    rthClimbStartedTimeMs; // used to check max climb duration
 
     /* INAV GPS origin (position where GPS fix was first acquired) */
     gpsOrigin_s                 gpsOrigin;
