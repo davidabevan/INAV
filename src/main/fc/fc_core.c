@@ -731,6 +731,9 @@ void taskMainPidLoop(timeUs_t currentTimeUs)
 
 #if defined(NAV)
     updatePositionEstimator();
+#if defined(USE_WIND_ESTIMATOR)
+    updateWindEstimator(currentTimeUs);
+#endif
     applyWaypointNavigationAndAltitudeHold();
 #endif
 
