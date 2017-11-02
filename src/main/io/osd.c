@@ -1451,7 +1451,7 @@ static bool osdDrawSingleElement(uint8_t item)
             break;
         }
 
-    case OSD_HORIZONTAL_WIND:
+    case OSD_WIND_SPEED_HORIZONTAL:
         {
             float horizontalWindSpeed;
             float horizontalWindAngle;
@@ -1472,7 +1472,7 @@ static bool osdDrawSingleElement(uint8_t item)
             break;
         }
 
-    case OSD_VERTICAL_WIND:
+    case OSD_WIND_SPEED_VERTICAL:
         {
             float verticalWindSpeed;
             getEstimatedWindVelocityBodyFrame(NULL, NULL, &verticalWindSpeed);
@@ -1505,8 +1505,8 @@ static uint8_t osdIncElementIndex(uint8_t elementIndex)
             elementIndex = OSD_GPS_SPEED;
         }
         if (elementIndex == OSD_EFFICIENCY) {
-            STATIC_ASSERT(OSD_VERTICAL_WIND == OSD_ITEM_COUNT - 1, OSD_VERTICAL_WIND_not_last_element);
-            elementIndex = feature(FEATURE_GPS) ? OSD_HORIZONTAL_WIND : OSD_ITEM_COUNT;
+            STATIC_ASSERT(OSD_WIND_SPEED_VERTICAL == OSD_ITEM_COUNT - 1, OSD_WIND_SPEED_VERTICAL_not_last_element);
+            elementIndex = feature(FEATURE_GPS) ? OSD_WIND_SPEED_HORIZONTAL : OSD_ITEM_COUNT;
         }
     }
     if (!feature(FEATURE_GPS)) {
@@ -1522,7 +1522,7 @@ static uint8_t osdIncElementIndex(uint8_t elementIndex)
         if (elementIndex == OSD_EFFICIENCY) {
             elementIndex = OSD_ITEM_COUNT;
         }
-        STATIC_ASSERT(OSD_VERTICAL_WIND == OSD_ITEM_COUNT - 1, OSD_VERTICAL_WIND_not_last_element);
+        STATIC_ASSERT(OSD_WIND_SPEED_VERTICAL == OSD_ITEM_COUNT - 1, OSD_WIND_SPEED_VERTICAL_not_last_element);
     }
 
     if (elementIndex == OSD_ITEM_COUNT) {
