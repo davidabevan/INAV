@@ -91,7 +91,11 @@ void updateWindEstimator(timeUs_t currentTimeUs)
 {
     static timeUs_t lastUpdateUs = 0;
 
-    if (!STATE(FIXED_WING) || !posControl.flags.hasValidHeadingSensor || !posControl.flags.hasValidPositionSensor) {
+    if (!STATE(FIXED_WING) ||
+        !posControl.flags.hasValidHeadingSensor ||
+        !posControl.flags.hasValidPositionSensor ||
+        !gpsSol.flags.validVelNE ||
+        !gpsSol.flags.validVelD) {
         return;
     }
 
