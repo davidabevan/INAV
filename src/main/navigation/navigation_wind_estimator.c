@@ -39,8 +39,6 @@
 #include "io/gps.h"
 #include "io/gps_private.h"
 
-#include "navigation/navigation.h"
-#include "navigation/navigation_private.h"
 
 static bool hasValidWindEstimate = false;
 static float estimatedWind[XYZ_AXIS_COUNT] = {0, 0, 0};    // wind velocity vectors in cm / sec
@@ -92,8 +90,7 @@ void updateWindEstimator(timeUs_t currentTimeUs)
     static timeUs_t lastUpdateUs = 0;
 
     if (!STATE(FIXED_WING) ||
-        !posControl.flags.hasValidHeadingSensor ||
-        !posControl.flags.hasValidPositionSensor ||
+        !isGPSHeadingValid() ||
         !gpsSol.flags.validVelNE ||
         !gpsSol.flags.validVelD) {
         return;
