@@ -17,7 +17,7 @@
 
 #pragma once
 
-#if defined(NAV) && defined(USE_WIND_ESTIMATOR)
+#if defined(GPS) && defined(USE_WIND_ESTIMATOR)
 
 #include "common/time.h"
 

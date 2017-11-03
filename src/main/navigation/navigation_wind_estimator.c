@@ -17,7 +17,7 @@
 
 #include "platform.h"
 
-#if defined(NAV) && defined(USE_WIND_ESTIMATOR)
+#if defined(GPS) && defined(USE_WIND_ESTIMATOR)
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
