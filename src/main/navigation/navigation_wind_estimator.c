@@ -45,44 +45,9 @@ static float estimatedWind[XYZ_AXIS_COUNT] = {0, 0, 0};    // wind velocity vect
 static float lastGroundVelocity[XYZ_AXIS_COUNT];
 static float lastFuselageDirection[XYZ_AXIS_COUNT];
 
-float getEstimatedWindVelocity(int axis)
+float getEstimatedWindSpeed(int axis)
 {
     return estimatedWind[axis];
-}
-
-bool getEstimatedWindVelocityBodyFrame(float *horizontalSpeed, float *horizontalAngle, float *verticalSpeed)
-{
-    // This is intended to be used by the OSD to show the wind
-    // horizontal speed and direction as well as vertical wind
-    // speed in order to detect thermals.
-    // TODO: Should just rotate on YAW?
-    struct fp_vector wind = {
-        .X = estimatedWind[X],
-        .Y = estimatedWind[Y],
-        .Z = estimatedWind[Z],
-    };
-
-    fp_angles_t rotation = {
-        .angles.roll = DECIDEGREES_TO_RADIANS(attitude.values.roll),
-        .angles.pitch = DECIDEGREES_TO_RADIANS(attitude.values.pitch),
-        .angles.yaw = DECIDEGREES_TO_RADIANS(attitude.values.yaw),
-    };
-
-    rotateV(&wind, &rotation);
-
-    if (horizontalSpeed) {
-        *horizontalSpeed = sqrtf(sq(wind.X) + sq(wind.Y));
-    }
-
-    if (horizontalAngle) {
-        *horizontalAngle = atan2_approx(wind.Y, wind.X);
-    }
-
-    if (verticalSpeed) {
-        *verticalSpeed = wind.Z;
-    }
-
-    return hasValidWindEstimate;
 }
 
 void updateWindEstimator(timeUs_t currentTimeUs)
