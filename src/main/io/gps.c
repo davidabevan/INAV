@@ -153,7 +153,7 @@ static void gpsUpdateTime(void)
     }
 }
 
-static void gpsHandleProtocol(void)
+static bool gpsHandleProtocol(void)
 {
     bool newDataReceived = false;
 
@@ -191,6 +191,7 @@ static void gpsHandleProtocol(void)
         // Update statistics
         gpsStats.lastMessageDt = gpsState.lastMessageMs - gpsState.lastLastMessageMs;
     }
+    return newDataReceived;
 }
 
 static void gpsResetSolution(void)
@@ -265,7 +266,7 @@ void gpsInit(void)
 }
 
 #ifdef USE_FAKE_GPS
-static void gpsFakeGPSUpdate(void)
+static bool gpsFakeGPSUpdate(void)
 {
     if (millis() - gpsState.lastMessageMs > 100) {
         gpsSol.fixType = GPS_FIX_3D;
@@ -300,7 +301,9 @@ static void gpsFakeGPSUpdate(void)
         gpsState.lastMessageMs = millis();
 
         gpsSetState(GPS_RECEIVING_DATA);
+        return true;
     }
+    return false;
 }
 #endif
 
@@ -328,19 +331,19 @@ uint16_t gpsConstrainHDOP(uint32_t hdop)
     return (hdop > 9999) ? 9999 : hdop; // max 99.99m error
 }
 
-void gpsThread(void)
+bool gpsUpdate(void)
 {
     /* Extra delay for at least 2 seconds after booting to give GPS time to initialise */
     if (!isMPUSoftReset() && (millis() < GPS_BOOT_DELAY)) {
         sensorsClear(SENSOR_GPS);
         DISABLE_STATE(GPS_FIX);
-        return;
+        return false;
     }
 
 #ifdef USE_FAKE_GPS
-    gpsFakeGPSUpdate();
+    return gpsFakeGPSUpdate();
 #else
-
+    bool updated = false;
     // Serial-based GPS
     if ((gpsProviders[gpsState.gpsConfig->provider].type == GPS_TYPE_SERIAL) && (gpsState.gpsPort != NULL)) {
         switch (gpsState.state) {
@@ -372,7 +375,7 @@ void gpsThread(void)
         case GPS_CHECK_VERSION:
         case GPS_CONFIGURE:
         case GPS_RECEIVING_DATA:
-            gpsHandleProtocol();
+            updated = gpsHandleProtocol();
             if ((millis() - gpsState.lastMessageMs) > GPS_TIMEOUT) {
                 // Check for GPS timeout
                 sensorsClear(SENSOR_GPS);
@@ -441,6 +444,7 @@ void gpsThread(void)
     else {
         // GPS_TYPE_NA
     }
+    return updated;
 #endif
 }
 

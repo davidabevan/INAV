@@ -70,6 +70,7 @@
 
 #include "flight/imu.h"
 #include "flight/pid.h"
+#include "flight/wind_estimator.h"
 
 #include "navigation/navigation.h"
 
@@ -355,6 +356,7 @@ static void osdFormatVelocityStr(char* buff, int32_t vel)
  * is null terminated.
  * @param ws Raw wind speed in cm/s
  */
+#ifdef USE_WIND_ESTIMATOR
 static void osdFormatWindSpeedStr(char *buff, int32_t ws, bool isValid)
 {
     int32_t centivalue;
@@ -379,6 +381,7 @@ static void osdFormatWindSpeedStr(char *buff, int32_t ws, bool isValid)
     buff[3] = suffix;
     buff[4] = '\0';
 }
+#endif
 
 /**
 * Converts altitude into a string based on the current unit system
@@ -1484,6 +1487,7 @@ static bool osdDrawSingleElement(uint8_t item)
         }
 
     case OSD_WIND_SPEED_HORIZONTAL:
+#ifdef USE_WIND_ESTIMATOR
         {
             bool valid = isEstimatedWindSpeedValid();
             float horizontalWindSpeed;
@@ -1509,8 +1513,12 @@ static bool osdDrawSingleElement(uint8_t item)
             osdFormatWindSpeedStr(buff + 2, horizontalWindSpeed, valid);
             break;
         }
+#else
+        return false;
+#endif
 
     case OSD_WIND_SPEED_VERTICAL:
+#ifdef USE_WIND_ESTIMATOR
         {
             buff[0] = SYM_WIND_VERTICAL;
             buff[1] = SYM_BLANK;
@@ -1530,6 +1538,9 @@ static bool osdDrawSingleElement(uint8_t item)
             osdFormatWindSpeedStr(buff + 2, verticalWindSpeed, valid);
             break;
         }
+#else
+        return false;
+#endif
 
     default:
         return false;

@@ -17,7 +17,10 @@
 
 #pragma once
 
-#if defined(GPS) && defined(USE_WIND_ESTIMATOR)
+#ifdef USE_WIND_ESTIMATOR
+#ifndef GPS
+#error Wind Estimator requires GPS support
+#endif
 
 #include "common/time.h"
 

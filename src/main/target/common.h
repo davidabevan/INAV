@@ -109,6 +109,7 @@
 #define VTX_SMARTAUDIO
 #define VTX_TRAMP
 
+// Wind estimator
 #define USE_WIND_ESTIMATOR
 
 #else // FLASH_SIZE < 128
