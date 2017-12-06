@@ -29,8 +29,8 @@
 #define USE_MPU_DATA_READY_SIGNAL
 #define MPU_ADDRESS             0x69
 
-#define GYRO
-#define ACC
+#define USE_GYRO
+#define USE_ACC
 
 #define MPU6050_I2C_BUS         BUS_I2C1
 
@@ -59,12 +59,11 @@
 
 #define USE_I2C
 #define USE_I2C_DEVICE_1
-#define I2C_DEVICE              (I2CDEV_1)
 #define I2C1_SCL                PB6
 #define I2C1_SDA                PB7
 
 #define USE_SPI
-#define OSD
+#define USE_OSD
 
 // include the max7456 driver
 #define USE_MAX7456

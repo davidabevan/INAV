@@ -30,11 +30,11 @@
 #define MPU6000_CS_PIN        PA4
 #define MPU6000_SPI_BUS       BUS_SPI1
 
-#define ACC
+#define USE_ACC
 #define USE_ACC_MPU6000
 #define ACC_MPU6000_ALIGN CW270_DEG
 
-#define GYRO
+#define USE_GYRO
 #define USE_GYRO_MPU6000
 #define GYRO_MPU6000_ALIGN CW270_DEG
 
@@ -43,13 +43,13 @@
 #define MPU_INT_EXTI            PC4
 #define USE_EXTI
 
-#define MAG
+#define USE_MAG
 #define MAG_I2C_BUS             BUS_I2C2
 #define USE_MAG_HMC5883
 #define USE_MAG_QMC5883
 #define MAG_HMC5883_ALIGN       CW270_DEG_FLIP
 
-#define BARO
+#define USE_BARO
 
 #ifdef ANYFCF7_EXTERNAL_BARO
     #define BARO_I2C_BUS        BUS_I2C2
@@ -62,7 +62,7 @@
 #endif
 
 #define USE_PITOT_MS4525
-#define PITOT_I2C_INSTANCE I2C_DEVICE_EXT
+#define PITOT_I2C_BUS           BUS_I2C2
 
 #define USABLE_TIMER_CHANNEL_COUNT 16
 
@@ -124,7 +124,7 @@
 #define SPI4_MISO_PIN           PE13
 #define SPI4_MOSI_PIN           PE14
 
-#define OSD
+#define USE_OSD
 #define USE_MAX7456
 #define MAX7456_SPI_BUS         BUS_SPI3
 #define MAX7456_CS_PIN          SPI3_NSS_PIN
@@ -150,8 +150,7 @@
 
 #define USE_I2C
 #define USE_I2C_DEVICE_4
-#define I2C_DEVICE (I2CDEV_4)
-#define I2C_DEVICE_EXT (I2CDEV_2)
+#define USE_I2C_DEVICE_2
 //#define USE_I2C_PULLUP
 
 //#define HIL
@@ -160,7 +159,7 @@
 
 #define SENSORS_SET (SENSOR_ACC|SENSOR_MAG|SENSOR_BARO)
 
-#define NAV
+#define USE_NAV
 #define NAV_AUTO_MAG_DECLINATION
 #define NAV_GPS_GLITCH_DETECTION
 
@@ -172,7 +171,7 @@
 #define CURRENT_METER_ADC_CHANNEL       ADC_CHN_2
 #define RSSI_ADC_CHANNEL                ADC_CHN_3
 
-#define LED_STRIP
+#define USE_LED_STRIP
 
 // LED Strip can run off Pin 6 (PA0) of the ESC outputs.
 #define WS2811_PIN                      PA1

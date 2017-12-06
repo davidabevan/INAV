@@ -86,8 +86,8 @@ static bool qmc5883Init(magDev_t * mag)
     bool ack = true;
 
     ack = ack && busWrite(mag->busDev, 0x0B, 0x01);
-    // ack = ack && i2cWrite(MAG_I2C_INSTANCE, QMC5883L_MAG_I2C_ADDRESS, 0x20, 0x40);
-    // ack = ack && i2cWrite(MAG_I2C_INSTANCE, QMC5883L_MAG_I2C_ADDRESS, 0x21, 0x01);
+    // ack = ack && i2cWrite(busWrite(mag->busDev, 0x20, 0x40);
+    // ack = ack && i2cWrite(busWrite(mag->busDev, 0x21, 0x01);
     ack = ack && busWrite(mag->busDev, QMC5883L_REG_CONF1, QMC5883L_MODE_CONTINUOUS | QMC5883L_ODR_200HZ | QMC5883L_OSR_512 | QMC5883L_RNG_8G);
 
     return ack;
@@ -143,7 +143,7 @@ static bool deviceDetect(magDev_t * mag)
 
 bool qmc5883Detect(magDev_t * mag)
 {
-    mag->busDev = busDeviceInit(BUSTYPE_ANY, DEVHW_QMC5883, 0, OWNER_COMPASS);
+    mag->busDev = busDeviceInit(BUSTYPE_ANY, DEVHW_QMC5883, mag->magSensorToUse, OWNER_COMPASS);
     if (mag->busDev == NULL) {
         return false;
     }

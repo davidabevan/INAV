@@ -61,16 +61,16 @@
 #define MPU9250_EXTI_PIN        PD15
 #define MPU9250_SPI_BUS         BUS_SPI1
 
-#define ACC
-#define GYRO
+#define USE_ACC
+#define USE_GYRO
 
-#define MAG
+#define USE_MAG
 #define MAG_I2C_BUS             BUS_I2C1
 #define USE_MAG_MPU9250
 #define USE_MAG_QMC5883
 #define USE_MAG_HMC5883
 
-#define BARO
+#define USE_BARO
 #define USE_BARO_MS5611
 #define MS5611_CS_PIN           PD7
 #define MS5611_SPI_BUS          BUS_SPI2
@@ -145,7 +145,7 @@
 #define SPI2_MOSI_PIN           PB15
 
 #define USE_I2C
-#define I2C_DEVICE              (I2CDEV_1)
+#define USE_I2C_DEVICE_1
 #define USE_I2C_PULLUP
 #define I2C1_SCL                PB8
 #define I2C1_SDA                PB9

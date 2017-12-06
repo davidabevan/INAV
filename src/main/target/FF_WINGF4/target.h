@@ -38,28 +38,28 @@
 #define MPU9250_CS_PIN          PC0
 #define MPU9250_SPI_BUS         BUS_SPI3
 
-#define ACC
+#define USE_ACC
 #define USE_ACC_MPU6500
 #define ACC_MPU6500_ALIGN       CW180_DEG
 #define USE_ACC_MPU9250
 #define ACC_MPU9250_ALIGN       CW180_DEG
 
-#define GYRO
+#define USE_GYRO
 #define USE_GYRO_MPU6500
 #define GYRO_MPU6500_ALIGN      CW180_DEG
 #define USE_GYRO_MPU9250
 #define GYRO_MPU9250_ALIGN      CW180_DEG
 
-#define MAG
+#define USE_MAG
 #define USE_MAG_MPU9250
 #define MAG_MPU9250_ALIGN       CW180_DEG
 
-#define BARO
+#define USE_BARO
 #define USE_BARO_MS5611
 #define MS5611_CS_PIN           PC5
 #define MS5611_SPI_BUS          BUS_SPI3
 
-#define OSD
+#define USE_OSD
 #define USE_MAX7456
 #define MAX7456_CS_PIN          PA4
 #define MAX7456_SPI_BUS         BUS_SPI1
@@ -116,7 +116,7 @@
 #define SPI3_MOSI_PIN           PB5
 
 #define USE_I2C
-#define I2C_DEVICE              (I2CDEV_2)
+#define USE_I2C_DEVICE_2
 #define I2C2_SCL                PB10
 #define I2C2_SDA                PB11
 

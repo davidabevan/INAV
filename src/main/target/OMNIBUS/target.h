@@ -34,7 +34,7 @@
 
 #define USE_EXTI
 
-#define GYRO
+#define USE_GYRO
 #define USE_GYRO_MPU6000
 #define MPU6000_SPI_BUS         BUS_SPI1
 #define MPU6000_CS_PIN          PA4
@@ -42,11 +42,11 @@
 #define USE_MPU_DATA_READY_SIGNAL
 #define GYRO_MPU6000_ALIGN      CW90_DEG
 
-#define ACC
+#define USE_ACC
 #define USE_ACC_MPU6000
 #define ACC_MPU6000_ALIGN       CW90_DEG
 
-#define BARO
+#define USE_BARO
 #define USE_BARO_BMP280
 #define BMP280_SPI_BUS          BUS_SPI1
 #define BMP280_CS_PIN           PA13
@@ -56,7 +56,7 @@
 #define USE_BARO_BMP180 // External
 #define USE_BARO_MS5611 // External
 
-#define MAG
+#define USE_MAG
 #define MAG_I2C_BUS             BUS_I2C1
 #define USE_MAG_HMC5883 // External
 #define USE_MAG_MAG3110 // External
@@ -88,12 +88,11 @@
 
 // Enable I2C instead of PWM7&8 for iNav
 #define USE_I2C
-#define I2C_DEVICE (I2CDEV_1) // PB6/SCL(PWM8), PB7/SDA(PWM7)
-// Because the I2C is shared with PWM7&8, there are no on-board ext. pullups.
-// Turn internal pullups, they are weak, but better than nothing.
+#define USE_I2C_DEVICE_1 // PB6/SCL(PWM8), PB7/SDA(PWM7)
 #define USE_I2C_PULLUP
 
 #define USE_PITOT_MS4525
+#define PITOT_I2C_BUS           BUS_I2C1
 
 #define USE_SPI
 #define USE_SPI_DEVICE_2 // PB12,13,14,15 on AF5
@@ -123,7 +122,7 @@
 // Performance logging for SD card operations:
 // #define AFATFS_USE_INTROSPECTIVE_LOGGING
 
-#define OSD
+#define USE_OSD
 #define USE_MAX7456
 #define MAX7456_SPI_BUS             BUS_SPI1
 #define MAX7456_CS_PIN              PB1
@@ -139,7 +138,7 @@
 #define CURRENT_METER_ADC_CHANNEL   ADC_CHN_2
 #define RSSI_ADC_CHANNEL            ADC_CHN_3
 
-#define LED_STRIP
+#define USE_LED_STRIP
 #define WS2811_PIN                      PA8
 #define WS2811_DMA_STREAM               DMA1_Channel2
 #define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH2_HANDLER
@@ -155,7 +154,7 @@
 #define BUTTON_B_PORT           GPIOB // TRIG button, used for BINDPLUG_PIN
 #define BUTTON_B_PIN            Pin_0
 
-#define SPEKTRUM_BIND
+#define USE_SPEKTRUM_BIND
 // USART3
 #define BIND_PIN                PB11
 
