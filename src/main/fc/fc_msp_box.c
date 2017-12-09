@@ -184,8 +184,9 @@ void initActiveBoxIds(void)
     }
 #endif
 
+    activeBoxIds[activeBoxIdCount++] = BOXNAVLAUNCH;
+
     if (STATE(FIXED_WING)) {
-        activeBoxIds[activeBoxIdCount++] = BOXPASSTHRU;
         activeBoxIds[activeBoxIdCount++] = BOXNAVLAUNCH;
         activeBoxIds[activeBoxIdCount++] = BOXAUTOTRIM;
 #if defined(AUTOTUNE_FIXED_WING)
