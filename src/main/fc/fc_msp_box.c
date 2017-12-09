@@ -184,7 +184,7 @@ void initActiveBoxIds(void)
     }
 #endif
 
-    activeBoxIds[activeBoxIdCount++] = BOXNAVLAUNCH;
+    activeBoxIds[activeBoxIdCount++] = BOXPASSTHRU;
 
     if (STATE(FIXED_WING)) {
         activeBoxIds[activeBoxIdCount++] = BOXNAVLAUNCH;
