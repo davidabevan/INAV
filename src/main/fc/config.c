@@ -53,7 +53,6 @@
 
 #include "io/beeper.h"
 #include "io/serial.h"
-#include "io/gimbal.h"
 #include "io/ledstrip.h"
 #include "io/gps.h"
 #include "io/osd.h"
@@ -74,6 +73,7 @@
 #include "fc/rc_curves.h"
 #include "fc/rc_modes.h"
 #include "fc/runtime_config.h"
+#include "fc/settings.h"
 
 #include "navigation/navigation.h"
 
@@ -103,19 +103,17 @@
 PG_REGISTER_WITH_RESET_TEMPLATE(featureConfig_t, featureConfig, PG_FEATURE_CONFIG, 0);
 
 PG_RESET_TEMPLATE(featureConfig_t, featureConfig,
-    .enabledFeatures = DEFAULT_FEATURES
+    .enabledFeatures = DEFAULT_FEATURES | COMMON_DEFAULT_FEATURES
 );
 
-PG_REGISTER_WITH_RESET_TEMPLATE(systemConfig_t, systemConfig, PG_SYSTEM_CONFIG, 1);
+PG_REGISTER_WITH_RESET_TEMPLATE(systemConfig_t, systemConfig, PG_SYSTEM_CONFIG, 2);
 
 PG_RESET_TEMPLATE(systemConfig_t, systemConfig,
     .current_profile_index = 0,
+    .current_battery_profile_index = 0,
     .debug_mode = DEBUG_NONE,
     .i2c_speed = I2C_SPEED_400KHZ,
     .cpuUnderclock = 0,
-    .accTaskFrequency = ACC_TASK_FREQUENCY_DEFAULT,
-    .attitudeTaskFrequency = ATTITUDE_TASK_FREQUENCY_DEFAULT,
-    .asyncMode = ASYNC_MODE_NONE,
     .throttle_tilt_compensation_strength = 0,      // 0-100, 0 - disabled
     .pwmRxInputFilteringMode = INPUT_FILTERING_DISABLED,
     .name = { 0 }
@@ -143,6 +141,18 @@ void validateNavConfig(void)
 #endif
 
 
+// Stubs to handle target-specific configs
+__attribute__((weak)) void validateAndFixTargetConfig(void)
+{
+    __NOP();
+}
+
+__attribute__((weak)) void targetConfiguration(void)
+{
+    __NOP();
+}
+
+
 #ifdef SWAP_SERIAL_PORT_0_AND_1_DEFAULTS
 #define FIRST_PORT_INDEX 1
 #define SECOND_PORT_INDEX 0
@@ -151,51 +161,9 @@ void validateNavConfig(void)
 #define SECOND_PORT_INDEX 1
 #endif
 
-uint32_t getPidUpdateRate(void)
-{
-#ifdef USE_ASYNC_GYRO_PROCESSING
-    if (systemConfig()->asyncMode == ASYNC_MODE_NONE) {
-        return getGyroUpdateRate();
-    } else {
-        return gyroConfig()->looptime;
-    }
-#else
+uint32_t getLooptime(void) {
     return gyro.targetLooptime;
-#endif
-}
-
-timeDelta_t getGyroUpdateRate(void)
-{
-    return gyro.targetLooptime;
-}
-uint16_t getAccUpdateRate(void)
-{
-#ifdef USE_ASYNC_GYRO_PROCESSING
-    // ACC will be updated at its own rate
-    if (systemConfig()->asyncMode == ASYNC_MODE_ALL) {
-        return 1000000 / systemConfig()->accTaskFrequency;
-    } else {
-        return getPidUpdateRate();
-    }
-#else
-    // ACC updated at same frequency in taskMainPidLoop in mw.c
-    return gyro.targetLooptime;
-#endif
-}
-
-#ifdef USE_ASYNC_GYRO_PROCESSING
-uint16_t getAttitudeUpdateRate(void) {
-    if (systemConfig()->asyncMode == ASYNC_MODE_ALL) {
-        return 1000000 / systemConfig()->attitudeTaskFrequency;
-    } else {
-        return getPidUpdateRate();
-    }
-}
-
-uint8_t getAsyncMode(void) {
-    return systemConfig()->asyncMode;
-}
-#endif
+} 
 
 void validateAndFixConfig(void)
 {
@@ -222,32 +190,23 @@ void validateAndFixConfig(void)
 #endif
 
     // Disable unused features
-    featureClear(FEATURE_UNUSED_1 | FEATURE_UNUSED_2 | FEATURE_UNUSED_3 | FEATURE_UNUSED_4 | FEATURE_UNUSED_5 | FEATURE_UNUSED_6 | FEATURE_UNUSED_7 | FEATURE_UNUSED_8 | FEATURE_UNUSED_9 );
+    featureClear(FEATURE_UNUSED_3 | FEATURE_UNUSED_4 | FEATURE_UNUSED_5 | FEATURE_UNUSED_6 | FEATURE_UNUSED_7 | FEATURE_UNUSED_8 | FEATURE_UNUSED_9 );
 
-#ifdef DISABLE_RX_PWM_FEATURE
+#if defined(DISABLE_RX_PWM_FEATURE) || !defined(USE_RX_PWM)
     if (rxConfig()->receiverType == RX_TYPE_PWM) {
+        rxConfigMutable()->receiverType = RX_TYPE_NONE;
+    }
+#endif
+
+#if !defined(USE_RX_PPM)
+    if (rxConfig()->receiverType == RX_TYPE_PPM) {
         rxConfigMutable()->receiverType = RX_TYPE_NONE;
     }
 #endif
 
 
     if (rxConfig()->receiverType == RX_TYPE_PWM) {
-#if defined(STM32F10X)
-        // rssi adc needs the same ports
-        featureClear(FEATURE_RSSI_ADC);
-        // current meter needs the same ports
-        if (batteryConfig()->currentMeterType == CURRENT_SENSOR_ADC) {
-            featureClear(FEATURE_CURRENT_METER);
-        }
-#if defined(CC3D)
-        // There is a timer clash between PWM RX pins and motor output pins - this forces us to have same timer tick rate for these timers
-        // which is only possible when using brushless motors w/o oneshot (timer tick rate is PWM_TIMER_MHZ)
-        // On CC3D OneShot is incompatible with PWM RX
-        motorConfigMutable()->motorPwmProtocol = PWM_TYPE_STANDARD; // Motor PWM rate will be handled later
-#endif
-#endif
-
-#if defined(STM32F10X) || defined(CHEBUZZ) || defined(STM32F3DISCOVERY)
+#if defined(CHEBUZZ) || defined(STM32F3DISCOVERY)
         // led strip needs the same ports
         featureClear(FEATURE_LED_STRIP);
 #endif
@@ -255,51 +214,6 @@ void validateAndFixConfig(void)
         // software serial needs free PWM ports
         featureClear(FEATURE_SOFTSERIAL);
     }
-
-#ifdef USE_SOFTSPI
-    if (featureConfigured(FEATURE_SOFTSPI)) {
-        if (rxConfig()->receiverType == RX_TYPE_PWM || rxConfig()->receiverType == RX_TYPE_PPM) {
-            rxConfigMutable()->receiverType = RX_TYPE_NONE;
-        }
-
-        featureClear(FEATURE_SOFTSERIAL | FEATURE_VBAT);
-#if defined(STM32F10X)
-        featureClear(FEATURE_LED_STRIP);
-        // rssi adc needs the same ports
-        featureClear(FEATURE_RSSI_ADC);
-        // current meter needs the same ports
-        if (batteryConfig()->currentMeterType == CURRENT_SENSOR_ADC) {
-            featureClear(FEATURE_CURRENT_METER);
-        }
-#endif
-    }
-#endif
-
-#ifdef USE_ASYNC_GYRO_PROCESSING
-    /*
-     * When async processing mode is enabled, gyroSync has to be forced to "ON"
-     */
-    if (getAsyncMode() != ASYNC_MODE_NONE) {
-        gyroConfigMutable()->gyroSync = 1;
-    }
-#endif
-
-#ifdef STM32F10X
-    // avoid overloading the CPU on F1 targets when using gyro sync and GPS.
-    if (featureConfigured(FEATURE_GPS)) {
-        // avoid overloading the CPU when looptime < 2000 and GPS
-        uint8_t denominatorLimit = 2;
-        if (gyroConfig()->gyro_lpf == 0) {
-            denominatorLimit = 16;
-        }
-        if (gyroConfig()->gyroSyncDenominator < denominatorLimit) {
-            gyroConfigMutable()->gyroSyncDenominator = denominatorLimit;
-        }
-        if (gyroConfig()->looptime < 2000) {
-            gyroConfigMutable()->looptime = 2000;
-        }
-    }
-#endif
 
 #if defined(USE_LED_STRIP) && (defined(USE_SOFTSERIAL1) || defined(USE_SOFTSERIAL2))
     if (featureConfigured(FEATURE_SOFTSERIAL) && featureConfigured(FEATURE_LED_STRIP)) {
@@ -327,54 +241,12 @@ void validateAndFixConfig(void)
     }
 #endif
 
-#if defined(NAZE) && defined(USE_RANGEFINDER_HCSR04)
-    if ((rxConfig()->receiverType == RX_TYPE_PWM) && (rangefinderConfig()->rangefinder_hardware == RANGEFINDER_HCSR04) && featureConfigured(FEATURE_CURRENT_METER) && batteryConfig()->currentMeterType == CURRENT_SENSOR_ADC) {
-        featureClear(FEATURE_CURRENT_METER);
-    }
-#endif
-
-#if defined(OLIMEXINO) && defined(USE_RANGEFINDER_HCSR04)
-    if ((rangefinderConfig()->rangefinder_hardware == RANGEFINDER_HCSR04) && feature(FEATURE_CURRENT_METER) && batteryConfig()->currentMeterType == CURRENT_SENSOR_ADC) {
-        featureClear(FEATURE_CURRENT_METER);
-    }
-#endif
-
-#if defined(CC3D) && defined(USE_DASHBOARD) && defined(USE_UART3)
-    if (doesConfigurationUsePort(SERIAL_PORT_USART3) && feature(FEATURE_DASHBOARD)) {
-        featureClear(FEATURE_DASHBOARD);
-    }
-#endif
-
-#if defined(CC3D)
-#if defined(CC3D_PPM1)
-    #if defined(USE_RANGEFINDER_HCSR04) && defined(USE_SOFTSERIAL1)
-        if ((rangefinderConfig()->rangefinder_hardware == RANGEFINDER_HCSR04) && feature(FEATURE_SOFTSERIAL)) {
-            rangefinderConfigMutable()->rangefinder_hardware = RANGEFINDER_NONE;
-        }
-    #endif
-#else
-    #if defined(USE_RANGEFINDER_HCSR04) && defined(USE_SOFTSERIAL1) && defined(RSSI_ADC_GPIO)
-        // shared pin
-        if (((rangefinderConfig()->rangefinder_hardware == RANGEFINDER_HCSR04) + featureConfigured(FEATURE_SOFTSERIAL) + featureConfigured(FEATURE_RSSI_ADC)) > 1) {
-           rangefinderConfigMutable()->rangefinder_hardware = RANGEFINDER_NONE;
-           featureClear(FEATURE_SOFTSERIAL);
-           featureClear(FEATURE_RSSI_ADC);
-        }
-    #endif
-#endif // CC3D_PPM1
-#endif // CC3D
-
-#ifndef USE_PMW_SERVO_DRIVER
+#ifndef USE_PWM_SERVO_DRIVER
     featureClear(FEATURE_PWM_SERVO_DRIVER);
 #endif
 
     if (!isSerialConfigValid(serialConfigMutable())) {
         pgResetCopy(serialConfigMutable(), PG_SERIAL_CONFIG);
-    }
-
-    // If provided predefined mixer setup is disabled, fallback to default one
-    if (!isMixerEnabled(mixerConfig()->mixerMode)) {
-        mixerConfigMutable()->mixerMode = DEFAULT_MIXER;
     }
 
 #if defined(USE_NAV)
@@ -383,10 +255,17 @@ void validateAndFixConfig(void)
 #endif
 
     // Limitations of different protocols
+#if !defined(USE_DSHOT)
+    if (motorConfig()->motorPwmProtocol > PWM_TYPE_BRUSHED) {
+        motorConfigMutable()->motorPwmProtocol = PWM_TYPE_STANDARD;
+    }
+#endif
+
 #ifdef BRUSHED_MOTORS
     motorConfigMutable()->motorPwmRate = constrain(motorConfig()->motorPwmRate, 500, 32000);
 #else
     switch (motorConfig()->motorPwmProtocol) {
+    default:
     case PWM_TYPE_STANDARD: // Limited to 490 Hz
         motorConfigMutable()->motorPwmRate = MIN(motorConfig()->motorPwmRate, 490);
         break;
@@ -402,8 +281,38 @@ void validateAndFixConfig(void)
     case PWM_TYPE_BRUSHED:      // 500Hz - 32kHz
         motorConfigMutable()->motorPwmRate = constrain(motorConfig()->motorPwmRate, 500, 32000);
         break;
+#ifdef USE_DSHOT
+    // One DSHOT packet takes 16 bits x 19 ticks + 2uS = 304 timer ticks + 2uS
+    case PWM_TYPE_DSHOT150:
+        motorConfigMutable()->motorPwmRate = MIN(motorConfig()->motorPwmRate, 4000);
+        break;
+    case PWM_TYPE_DSHOT300:
+        motorConfigMutable()->motorPwmRate = MIN(motorConfig()->motorPwmRate, 8000);
+        break;
+    // Although DSHOT 600+ support >16kHz update rate it's not practical because of increased CPU load
+    // It's more reasonable to use slower-speed DSHOT at higher rate for better reliability
+    case PWM_TYPE_DSHOT600:
+        motorConfigMutable()->motorPwmRate = MIN(motorConfig()->motorPwmRate, 16000);
+        break;
+    case PWM_TYPE_DSHOT1200:
+        motorConfigMutable()->motorPwmRate = MIN(motorConfig()->motorPwmRate, 32000);
+        break;
+#endif
     }
 #endif
+
+#if !defined(USE_MPU_DATA_READY_SIGNAL)
+    gyroConfigMutable()->gyroSync = false;
+#endif
+
+    // Call target-specific validation function
+    validateAndFixTargetConfig();
+
+    if (settingsValidate(NULL)) {
+        DISABLE_ARMING_FLAG(ARMING_DISABLED_INVALID_SETTING);
+    } else {
+        ENABLE_ARMING_FLAG(ARMING_DISABLED_INVALID_SETTING);
+    }
 }
 
 void applyAndSaveBoardAlignmentDelta(int16_t roll, int16_t pitch)
@@ -428,9 +337,7 @@ void createDefaultConfig(void)
 #endif
 #endif
 
-#if defined(TARGET_CONFIG)
     targetConfiguration();
-#endif
 }
 
 void resetConfigs(void)
@@ -449,6 +356,7 @@ void resetConfigs(void)
 static void activateConfig(void)
 {
     activateControlRateConfig();
+    activateBatteryProfile();
 
     resetAdjustmentStates();
 
@@ -478,6 +386,7 @@ void readEEPROM(void)
     }
 
     setConfigProfile(getConfigProfile());
+    setConfigBatteryProfile(getConfigBatteryProfile());
 
     validateAndFixConfig();
     activateConfig();
@@ -539,6 +448,35 @@ bool setConfigProfile(uint8_t profileIndex)
 void setConfigProfileAndWriteEEPROM(uint8_t profileIndex)
 {
     if (setConfigProfile(profileIndex)) {
+        // profile has changed, so ensure current values saved before new profile is loaded
+        writeEEPROM();
+        readEEPROM();
+    }
+    beeperConfirmationBeeps(profileIndex + 1);
+}
+
+uint8_t getConfigBatteryProfile(void)
+{
+    return systemConfig()->current_battery_profile_index;
+}
+
+bool setConfigBatteryProfile(uint8_t profileIndex)
+{
+    bool ret = true; // return true if current_battery_profile_index has changed
+    if (systemConfig()->current_battery_profile_index == profileIndex) {
+        ret =  false;
+    }
+    if (profileIndex >= MAX_BATTERY_PROFILE_COUNT) {// sanity check
+        profileIndex = 0;
+    }
+    systemConfigMutable()->current_battery_profile_index = profileIndex;
+    setBatteryProfile(profileIndex);
+    return ret;
+}
+
+void setConfigBatteryProfileAndWriteEEPROM(uint8_t profileIndex)
+{
+    if (setConfigBatteryProfile(profileIndex)) {
         // profile has changed, so ensure current values saved before new profile is loaded
         writeEEPROM();
         readEEPROM();

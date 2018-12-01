@@ -19,6 +19,7 @@
 
 #include "drivers/io_types.h"
 #include "drivers/rcc_types.h"
+#include "drivers/dma.h"
 
 #if defined(STM32F4) || defined(STM32F3)
 #define SPI_IO_AF_CFG           IO_CONFIG(GPIO_Mode_AF,  GPIO_Speed_50MHz, GPIO_OType_PP, GPIO_PuPd_NOPULL)
@@ -31,11 +32,6 @@
 #define SPI_IO_AF_SCK_CFG_LOW   IO_CONFIG(GPIO_MODE_AF_PP, GPIO_SPEED_FREQ_VERY_HIGH, GPIO_PULLDOWN)
 #define SPI_IO_AF_MISO_CFG      IO_CONFIG(GPIO_MODE_AF_PP, GPIO_SPEED_FREQ_VERY_HIGH, GPIO_PULLUP)
 #define SPI_IO_CS_CFG           IO_CONFIG(GPIO_MODE_OUTPUT_PP, GPIO_SPEED_FREQ_VERY_HIGH, GPIO_NOPULL)
-#elif defined(STM32F1)
-#define SPI_IO_AF_SCK_CFG       IO_CONFIG(GPIO_Mode_AF_PP,       GPIO_Speed_50MHz)
-#define SPI_IO_AF_MOSI_CFG      IO_CONFIG(GPIO_Mode_AF_PP,       GPIO_Speed_50MHz)
-#define SPI_IO_AF_MISO_CFG      IO_CONFIG(GPIO_Mode_IN_FLOATING, GPIO_Speed_50MHz)
-#define SPI_IO_CS_CFG           IO_CONFIG(GPIO_Mode_Out_PP,      GPIO_Speed_50MHz)
 #endif
 
 /*
@@ -44,7 +40,7 @@
 
 typedef enum {
     SPI_CLOCK_INITIALIZATON = 0,    // Lowest possible
-    SPI_CLOCK_SLOW          = 1,    // ~1 MHz    
+    SPI_CLOCK_SLOW          = 1,    // ~1 MHz
     SPI_CLOCK_STANDARD      = 2,    // ~10MHz
     SPI_CLOCK_FAST          = 3,    // ~20MHz
     SPI_CLOCK_ULTRAFAST     = 4     // Highest possible
@@ -58,9 +54,7 @@ typedef enum SPIDevice {
     SPIDEV_4
 } SPIDevice;
 
-#if defined(STM32F1)
-#define SPIDEV_COUNT 2
-#elif defined(STM32F3) || defined(STM32F4)
+#if defined(STM32F3) || defined(STM32F4)
 #define SPIDEV_COUNT 3
 #elif defined(STM32F7)
 #define SPIDEV_COUNT 4
@@ -76,22 +70,16 @@ typedef struct SPIDevice_s {
     ioTag_t miso;
     rccPeriphTag_t rcc;
     uint8_t af;
-    volatile uint16_t errorCount;
     bool leadingEdge;
-#if defined(STM32F7)
-    SPI_HandleTypeDef hspi;
-    DMA_HandleTypeDef hdma;
-    uint8_t dmaIrqHandler;
-#endif
     const uint16_t * divisorMap;
+    volatile uint16_t errorCount;
 } spiDevice_t;
 
 bool spiInit(SPIDevice device);
+bool spiIsBusBusy(SPI_TypeDef *instance);
 void spiSetSpeed(SPI_TypeDef *instance, SPIClockSpeed_e speed);
 uint8_t spiTransferByte(SPI_TypeDef *instance, uint8_t in);
-bool spiIsBusBusy(SPI_TypeDef *instance);
-
-bool spiTransfer(SPI_TypeDef *instance, uint8_t *out, const uint8_t *in, int len);
+bool spiTransfer(SPI_TypeDef *instance, uint8_t *rxData, const uint8_t *txData, int len);
 
 uint16_t spiGetErrorCounter(SPI_TypeDef *instance);
 void spiResetErrorCounter(SPI_TypeDef *instance);

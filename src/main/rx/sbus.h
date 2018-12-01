@@ -17,5 +17,6 @@
 
 #pragma once
 
-uint8_t sbusFrameStatus(void);
+#define SBUS_DEFAULT_INTERFRAME_DELAY_US    3000    // According to FrSky interframe is 6.67ms, we go smaller just in case
+
 bool sbusInit(const rxConfig_t *initialRxConfig, rxRuntimeConfig_t *rxRuntimeConfig);

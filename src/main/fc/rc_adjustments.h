@@ -25,29 +25,57 @@
 //#define USE_INFLIGHT_PROFILE_ADJUSTMENT - not currently enabled
 
 typedef enum {
-    ADJUSTMENT_NONE             = 0,
-    ADJUSTMENT_RC_RATE          = 1,
-    ADJUSTMENT_RC_EXPO          = 2,
-    ADJUSTMENT_THROTTLE_EXPO    = 3,
-    ADJUSTMENT_PITCH_ROLL_RATE  = 4,
-    ADJUSTMENT_YAW_RATE         = 5,
-    ADJUSTMENT_PITCH_ROLL_P     = 6,
-    ADJUSTMENT_PITCH_ROLL_I     = 7,
-    ADJUSTMENT_PITCH_ROLL_D     = 8,
-    ADJUSTMENT_YAW_P            = 9,
-    ADJUSTMENT_YAW_I            = 10,
-    ADJUSTMENT_YAW_D            = 11,
-    ADJUSTMENT_RATE_PROFILE     = 12,    // Unused, placeholder for compatibility
-    ADJUSTMENT_PITCH_RATE       = 13,
-    ADJUSTMENT_ROLL_RATE        = 14,
-    ADJUSTMENT_PITCH_P          = 15,
-    ADJUSTMENT_PITCH_I          = 16,
-    ADJUSTMENT_PITCH_D          = 17,
-    ADJUSTMENT_ROLL_P           = 18,
-    ADJUSTMENT_ROLL_I           = 19,
-    ADJUSTMENT_ROLL_D           = 20,
+    ADJUSTMENT_NONE                     = 0,
+    ADJUSTMENT_RC_RATE                  = 1,
+    ADJUSTMENT_RC_EXPO                  = 2,
+    ADJUSTMENT_THROTTLE_EXPO            = 3,
+    ADJUSTMENT_PITCH_ROLL_RATE          = 4,
+    ADJUSTMENT_YAW_RATE                 = 5,
+    ADJUSTMENT_PITCH_ROLL_P             = 6,
+    ADJUSTMENT_PITCH_ROLL_I             = 7,
+    ADJUSTMENT_PITCH_ROLL_D             = 8,
+    ADJUSTMENT_YAW_P                    = 9,
+    ADJUSTMENT_YAW_I                    = 10,
+    ADJUSTMENT_YAW_D                    = 11,
+    ADJUSTMENT_RATE_PROFILE             = 12,    // Unused, placeholder for compatibility
+    ADJUSTMENT_PITCH_RATE               = 13,
+    ADJUSTMENT_ROLL_RATE                = 14,
+    ADJUSTMENT_PITCH_P                  = 15,
+    ADJUSTMENT_PITCH_I                  = 16,
+    ADJUSTMENT_PITCH_D                  = 17,
+    ADJUSTMENT_ROLL_P                   = 18,
+    ADJUSTMENT_ROLL_I                   = 19,
+    ADJUSTMENT_ROLL_D                   = 20,
+    ADJUSTMENT_RC_YAW_EXPO              = 21,
+    ADJUSTMENT_MANUAL_RC_EXPO           = 22,
+    ADJUSTMENT_MANUAL_RC_YAW_EXPO       = 23,
+    ADJUSTMENT_MANUAL_PITCH_ROLL_RATE   = 24,
+    ADJUSTMENT_MANUAL_ROLL_RATE         = 25,
+    ADJUSTMENT_MANUAL_PITCH_RATE        = 26,
+    ADJUSTMENT_MANUAL_YAW_RATE          = 27,
+    ADJUSTMENT_NAV_FW_CRUISE_THR        = 28,
+    ADJUSTMENT_NAV_FW_PITCH2THR         = 29,
+    ADJUSTMENT_ROLL_BOARD_ALIGNMENT     = 30,
+    ADJUSTMENT_PITCH_BOARD_ALIGNMENT    = 31,
+    ADJUSTMENT_LEVEL_P                  = 32,
+    ADJUSTMENT_LEVEL_I                  = 33,
+    ADJUSTMENT_LEVEL_D                  = 34,
+    ADJUSTMENT_POS_XY_P                 = 35,
+    ADJUSTMENT_POS_XY_I                 = 36,
+    ADJUSTMENT_POS_XY_D                 = 37,
+    ADJUSTMENT_POS_Z_P                  = 38,
+    ADJUSTMENT_POS_Z_I                  = 39,
+    ADJUSTMENT_POS_Z_D                  = 40,
+    ADJUSTMENT_HEADING_P                = 41,
+    ADJUSTMENT_VEL_XY_P                 = 42,
+    ADJUSTMENT_VEL_XY_I                 = 43,
+    ADJUSTMENT_VEL_XY_D                 = 44,
+    ADJUSTMENT_VEL_Z_P                  = 45,
+    ADJUSTMENT_VEL_Z_I                  = 46,
+    ADJUSTMENT_VEL_Z_D                  = 47,
+    ADJUSTMENT_FW_MIN_THROTTLE_DOWN_PITCH_ANGLE = 48,
 #ifdef USE_INFLIGHT_PROFILE_ADJUSTMENT
-    ADJUSTMENT_PROFILE          = 21,
+    ADJUSTMENT_PROFILE                  = 49,
 #endif
     ADJUSTMENT_FUNCTION_COUNT // must be last
 } adjustmentFunction_e;
@@ -107,6 +135,7 @@ typedef struct adjustmentState_s {
 PG_DECLARE_ARRAY(adjustmentRange_t, MAX_ADJUSTMENT_RANGE_COUNT, adjustmentRanges);
 
 void resetAdjustmentStates(void);
-void updateAdjustmentStates(void);
+void updateAdjustmentStates(bool canUseRxData);
 struct controlRateConfig_s;
-void processRcAdjustments(struct controlRateConfig_s *controlRateConfig);
+void processRcAdjustments(struct controlRateConfig_s *controlRateConfig, bool canUseRxData);
+bool isAdjustmentFunctionSelected(uint8_t adjustmentFunction);

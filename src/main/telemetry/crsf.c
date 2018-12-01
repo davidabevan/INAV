@@ -21,7 +21,7 @@
 
 #include "platform.h"
 
-#if defined(USE_TELEMETRY) && defined(USE_TELEMETRY_CRSF)
+#if defined(USE_TELEMETRY) && defined(USE_SERIALRX_CRSF) && defined(USE_TELEMETRY_CRSF)
 
 #include "build/build_config.h"
 #include "build/version.h"
@@ -39,6 +39,7 @@
 
 #include "fc/config.h"
 #include "fc/rc_controls.h"
+#include "fc/rc_modes.h"
 #include "fc/runtime_config.h"
 
 #include "flight/imu.h"
@@ -57,7 +58,13 @@
 #include "telemetry/telemetry.h"
 
 
-#define CRSF_CYCLETIME_US                   100000 // 100ms, 10 Hz
+#define CRSF_CYCLETIME_US                   100000  // 100ms, 10 Hz
+
+// According to TBS: "CRSF over serial should always use a sync byte at the beginning of each frame.
+// To get better performance it's recommended to use the sync byte 0xC8 to get better performance"
+//
+// Digitalentity: Using frame address byte as a sync field looks somewhat hacky to me, but seems it's needed to get CRSF working properly
+#define CRSF_TELEMETRY_SYNC_BYTE            0xC8
 
 static bool crsfTelemetryEnabled;
 static uint8_t crsfCrc;
@@ -69,7 +76,7 @@ static void crsfInitializeFrame(sbuf_t *dst)
     dst->ptr = crsfFrame;
     dst->end = ARRAYEND(crsfFrame);
 
-    sbufWriteU8(dst, CRSF_ADDRESS_BROADCAST);
+    sbufWriteU8(dst, CRSF_TELEMETRY_SYNC_BYTE);
 }
 
 static void crsfSerialize8(sbuf_t *dst, uint8_t v)
@@ -166,12 +173,12 @@ void crsfFrameBatterySensor(sbuf_t *dst)
     // use sbufWrite since CRC does not include frame length
     sbufWriteU8(dst, CRSF_FRAME_BATTERY_SENSOR_PAYLOAD_SIZE + CRSF_FRAME_LENGTH_TYPE_CRC);
     crsfSerialize8(dst, CRSF_FRAMETYPE_BATTERY_SENSOR);
-    crsfSerialize16(dst, vbat); // vbat is in units of 0.1V
-    crsfSerialize16(dst, amperage / 10);
+    crsfSerialize16(dst, getBatteryVoltage() / 10); // vbat is in units of 0.01V
+    crsfSerialize16(dst, getAmperage() / 10);
     const uint8_t batteryRemainingPercentage = calculateBatteryPercentage();
-    crsfSerialize8(dst, (mAhDrawn >> 16));
-    crsfSerialize8(dst, (mAhDrawn >> 8));
-    crsfSerialize8(dst, (uint8_t)mAhDrawn);
+    crsfSerialize8(dst, (getMAhDrawn() >> 16));
+    crsfSerialize8(dst, (getMAhDrawn() >> 8));
+    crsfSerialize8(dst, (uint8_t)getMAhDrawn());
     crsfSerialize8(dst, batteryRemainingPercentage);
 }
 
@@ -222,21 +229,49 @@ char[]      Flight mode ( Null­terminated string )
 */
 void crsfFrameFlightMode(sbuf_t *dst)
 {
-    // just do Angle for the moment as a placeholder
+    // just do "OK" for the moment as a placeholder
     // write zero for frame length, since we don't know it yet
     uint8_t *lengthPtr = sbufPtr(dst);
     sbufWriteU8(dst, 0);
     crsfSerialize8(dst, CRSF_FRAMETYPE_FLIGHT_MODE);
 
-    // use same logic as OSD, so telemetry displays same flight text as OSD
-    const char *flightMode = "ACRO";
-    if (FLIGHT_MODE(FAILSAFE_MODE)) {
-        flightMode = "!FS";
-    } else if (FLIGHT_MODE(ANGLE_MODE)) {
-        flightMode = "ANGL";
-    } else if (FLIGHT_MODE(HORIZON_MODE)) {
-        flightMode = "HOR";
+    // use same logic as OSD, so telemetry displays same flight text as OSD when armed
+    const char *flightMode = "OK";
+    if (ARMING_FLAG(ARMED)) {
+        if (isAirmodeActive()) {
+            flightMode = "AIR";
+        } else {
+            flightMode = "ACRO";
+        }
+        if (FLIGHT_MODE(FAILSAFE_MODE)) {
+            flightMode = "!FS!";
+        } else if (FLIGHT_MODE(MANUAL_MODE)) {
+            flightMode = "MANU";
+        } else if (FLIGHT_MODE(NAV_RTH_MODE)) {
+            flightMode = "RTH";
+        } else if (FLIGHT_MODE(NAV_POSHOLD_MODE)) {
+            flightMode = "HOLD";
+        } else if (FLIGHT_MODE(NAV_CRUISE_MODE) && FLIGHT_MODE(NAV_ALTHOLD_MODE)) {
+            flightMode = "3CRS";
+        } else if (FLIGHT_MODE(NAV_CRUISE_MODE)) {
+            flightMode = "CRS";
+        } else if (FLIGHT_MODE(NAV_ALTHOLD_MODE) && navigationRequiresAngleMode()) {
+            flightMode = "AH";
+        } else if (FLIGHT_MODE(NAV_WP_MODE)) {
+            flightMode = "WP";
+        } else if (FLIGHT_MODE(ANGLE_MODE)) {
+            flightMode = "ANGL";
+        } else if (FLIGHT_MODE(HORIZON_MODE)) {
+            flightMode = "HOR";
+        }
+#ifdef USE_GPS
+    } else if (feature(FEATURE_GPS) && (!STATE(GPS_FIX) || !STATE(GPS_FIX_HOME))) {
+        flightMode = "WAIT"; // Waiting for GPS lock
+#endif
+    } else if (isArmingDisabled()) {
+        flightMode = "!ERR";
     }
+
     crsfSerializeData(dst, (const uint8_t*)flightMode, strlen(flightMode));
     crsfSerialize8(dst, 0); // zero terminator for string
     // write in the length
@@ -249,7 +284,6 @@ void crsfFrameFlightMode(sbuf_t *dst)
 #define CRSF_SCHEDULE_COUNT_MAX     5
 static uint8_t crsfScheduleCount;
 static uint8_t crsfSchedule[CRSF_SCHEDULE_COUNT_MAX];
-
 
 static void processCrsf(void)
 {

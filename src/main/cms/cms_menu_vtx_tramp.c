@@ -1,26 +1,31 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "platform.h"
 
-#if defined(USE_CMS) && defined(VTX_TRAMP)
+#if defined(USE_CMS) && defined(USE_VTX_TRAMP)
 
 #include "common/printf.h"
 #include "common/utils.h"
@@ -34,29 +39,43 @@
 
 #include "io/vtx_string.h"
 #include "io/vtx_tramp.h"
+#include "io/vtx.h"
 
-char trampCmsStatusString[31] = "- -- ---- ----";
+static bool trampCmsDrawStatusString(char *buf, unsigned bufsize)
+{
+    const char *defaultString = "- -- ---- ----";
 //                               m bc ffff tppp
 //                               01234567890123
 
-void trampCmsUpdateStatusString(void)
-{
-    trampCmsStatusString[0] = '*';
-    trampCmsStatusString[1] = ' ';
-    trampCmsStatusString[2] = vtx58BandLetter[trampBand];
-    trampCmsStatusString[3] = vtx58ChannelNames[trampChannel][0];
-    trampCmsStatusString[4] = ' ';
-
-    if (trampCurFreq)
-        tfp_sprintf(&trampCmsStatusString[5], "%4d", trampCurFreq);
-    else
-        tfp_sprintf(&trampCmsStatusString[5], "----");
-
-    if (trampPower) {
-        tfp_sprintf(&trampCmsStatusString[9], " %c%3d", (trampPower == trampConfiguredPower) ? ' ' : '*', trampPower);
+    if (bufsize < strlen(defaultString) + 1) {
+        return false;
     }
+
+    strcpy(buf, defaultString);
+
+    vtxDevice_t *vtxDevice = vtxCommonDevice();
+    if (!vtxDevice || vtxCommonGetDeviceType(vtxDevice) != VTXDEV_TRAMP || !vtxCommonDeviceIsReady(vtxDevice)) {
+        return true;
+    }
+
+    buf[0] = '*';
+    buf[1] = ' ';
+    buf[2] = vtx58BandLetter[trampData.band];
+    buf[3] = vtx58ChannelNames[trampData.channel][0];
+    buf[4] = ' ';
+
+    if (trampData.curFreq)
+        tfp_sprintf(&buf[5], "%4d", trampData.curFreq);
     else
-        tfp_sprintf(&trampCmsStatusString[9], " ----");
+        tfp_sprintf(&buf[5], "----");
+
+    if (trampData.power) {
+        tfp_sprintf(&buf[9], " %c%3d", (trampData.power == trampData.configuredPower) ? ' ' : '*', trampData.power);
+    } else {
+        tfp_sprintf(&buf[9], " ----");
+    }
+
+    return true;
 }
 
 uint8_t trampCmsPitMode = 0;
@@ -64,15 +83,13 @@ uint8_t trampCmsBand = 1;
 uint8_t trampCmsChan = 1;
 uint16_t trampCmsFreqRef;
 
-OSD_TAB_t trampCmsEntBand = { &trampCmsBand, 5, vtx58BandNames };
+static const OSD_TAB_t trampCmsEntBand = { &trampCmsBand, VTX_TRAMP_BAND_COUNT, vtx58BandNames };
 
-OSD_TAB_t trampCmsEntChan = { &trampCmsChan, 8, vtx58ChannelNames };
-
-static OSD_UINT16_t trampCmsEntFreqRef = { &trampCmsFreqRef, 5600, 5900, 0 };
+static const OSD_TAB_t trampCmsEntChan = { &trampCmsChan, VTX_TRAMP_CHANNEL_COUNT, vtx58ChannelNames };
 
 static uint8_t trampCmsPower = 1;
 
-OSD_TAB_t trampCmsEntPower = { &trampCmsPower, 5, trampPowerNames };
+static const OSD_TAB_t trampCmsEntPower = { &trampCmsPower, VTX_TRAMP_POWER_COUNT, trampPowerNames };
 
 static void trampCmsUpdateFreqRef(void)
 {
@@ -120,13 +137,11 @@ static long trampCmsConfigPower(displayPort_t *pDisp, const void *self)
     return 0;
 }
 
-static OSD_INT16_t trampCmsEntTemp = { &trampTemperature, -100, 300, 0 };
-
 static const char * const trampCmsPitModeNames[] = {
     "---", "OFF", "ON "
 };
 
-static OSD_TAB_t trampCmsEntPitMode = { &trampCmsPitMode, 2, trampCmsPitModeNames };
+static const OSD_TAB_t trampCmsEntPitMode = { &trampCmsPitMode, 2, trampCmsPitModeNames };
 
 static long trampCmsSetPitMode(displayPort_t *pDisp, const void *self)
 {
@@ -154,21 +169,28 @@ static long trampCmsCommence(displayPort_t *pDisp, const void *self)
     // If it fails, the user should retry later
     trampCommitChanges();
 
+    // update'vtx_' settings
+    vtxSettingsConfigMutable()->band = trampCmsBand;
+    vtxSettingsConfigMutable()->channel = trampCmsChan;
+    vtxSettingsConfigMutable()->power = trampCmsPower;
+    vtxSettingsConfigMutable()->freq = vtx58_Bandchan2Freq(trampCmsBand, trampCmsChan);
+
+    saveConfigAndNotify();
 
     return MENU_CHAIN_BACK;
 }
 
 static void trampCmsInitSettings(void)
 {
-    if(trampBand > 0) trampCmsBand = trampBand;
-    if(trampChannel > 0) trampCmsChan = trampChannel;
+    if (trampData.band > 0) trampCmsBand = trampData.band;
+    if (trampData.channel > 0) trampCmsChan = trampData.channel;
 
     trampCmsUpdateFreqRef();
-    trampCmsPitMode = trampPitMode + 1;
+    trampCmsPitMode = trampData.pitMode + 1;
 
-    if (trampConfiguredPower > 0) {
-        for (uint8_t i = 0; i < sizeof(trampPowerTable); i++) {
-            if (trampConfiguredPower <= trampPowerTable[i]) {
+    if (trampData.configuredPower > 0) {
+        for (uint8_t i = 0; i < VTX_TRAMP_POWER_COUNT; i++) {
+            if (trampData.configuredPower <= trampPowerTable[i]) {
                 trampCmsPower = i + 1;
                 break;
             }
@@ -176,20 +198,24 @@ static void trampCmsInitSettings(void)
     }
 }
 
-static long trampCmsOnEnter(void)
+static long trampCmsOnEnter(const OSD_Entry *from)
 {
+    UNUSED(from);
+
     trampCmsInitSettings();
     return 0;
 }
 
-static OSD_Entry trampCmsMenuCommenceEntries[] = {
-    { "CONFIRM", OME_Label,   NULL,          NULL, 0 },
-    { "YES",     OME_Funcall, trampCmsCommence, NULL, 0 },
-    { "BACK",    OME_Back, NULL, NULL, 0 },
-    { NULL,      OME_END, NULL, NULL, 0 }
+static const OSD_Entry trampCmsMenuCommenceEntries[] =
+{
+    OSD_LABEL_ENTRY("CONFIRM"),
+    OSD_FUNC_CALL_ENTRY("YES", trampCmsCommence),
+
+    OSD_BACK_ENTRY,
+    OSD_END_ENTRY,
 };
 
-static CMS_Menu trampCmsMenuCommence = {
+static const CMS_Menu trampCmsMenuCommence = {
 #ifdef CMS_MENU_DEBUG
     .GUARD_text = "XVTXTRC",
     .GUARD_type = OME_MENU,
@@ -200,24 +226,24 @@ static CMS_Menu trampCmsMenuCommence = {
     .entries = trampCmsMenuCommenceEntries,
 };
 
-static OSD_Entry trampMenuEntries[] =
+static const OSD_Entry trampMenuEntries[] =
 {
-    { "- TRAMP -", OME_Label, NULL, NULL, 0 },
+    OSD_LABEL_ENTRY("- TRAMP -"),
 
-    { "",       OME_Label,   NULL,                   trampCmsStatusString,  DYNAMIC },
-    { "PIT",    OME_TAB,     trampCmsSetPitMode,     &trampCmsEntPitMode,   0 },
-    { "BAND",   OME_TAB,     trampCmsConfigBand,     &trampCmsEntBand,      0 },
-    { "CHAN",   OME_TAB,     trampCmsConfigChan,     &trampCmsEntChan,      0 },
-    { "(FREQ)", OME_UINT16,  NULL,                   &trampCmsEntFreqRef,   DYNAMIC },
-    { "POWER",  OME_TAB,     trampCmsConfigPower,    &trampCmsEntPower,     0 },
-    { "T(C)",   OME_INT16,   NULL,                   &trampCmsEntTemp,      DYNAMIC },
-    { "SET",    OME_Submenu, cmsMenuChange,          &trampCmsMenuCommence, 0 },
+    OSD_LABEL_FUNC_DYN_ENTRY("", trampCmsDrawStatusString),
+    OSD_TAB_CALLBACK_ENTRY("PIT", trampCmsSetPitMode, &trampCmsEntPitMode),
+    OSD_TAB_CALLBACK_ENTRY("BAND", trampCmsConfigBand, &trampCmsEntBand),
+    OSD_TAB_CALLBACK_ENTRY("CHAN", trampCmsConfigChan, &trampCmsEntChan),
+    OSD_UINT16_RO_ENTRY("(FREQ)", &trampCmsFreqRef),
+    OSD_TAB_CALLBACK_ENTRY("POWER", trampCmsConfigPower, &trampCmsEntPower),
+    OSD_INT16_RO_ENTRY("T(C)", &trampData.temperature),
+    OSD_SUBMENU_ENTRY("SET", &trampCmsMenuCommence),
 
-    { "BACK",   OME_Back, NULL, NULL, 0 },
-    { NULL,     OME_END, NULL, NULL, 0 }
+    OSD_BACK_ENTRY,
+    OSD_END_ENTRY,
 };
 
-CMS_Menu cmsx_menuVtxTramp = {
+const CMS_Menu cmsx_menuVtxTramp = {
 #ifdef CMS_MENU_DEBUG
     .GUARD_text = "XVTXTR",
     .GUARD_type = OME_MENU,

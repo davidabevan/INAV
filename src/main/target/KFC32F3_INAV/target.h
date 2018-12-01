@@ -30,9 +30,11 @@
 #define BEEPER_INVERTED
 
 #define USE_EXTI
-#define MPU_INT_EXTI            PC5
+#define GYRO_INT_EXTI            PC5
 #define USE_MPU_DATA_READY_SIGNAL
 #define ENSURE_MPU_DATA_READY_IS_LOW
+
+#define BUS_SPI_SPEED_MAX BUS_SPEED_SLOW
 
 #define MPU6000_CS_PIN          PB5
 #define MPU6000_SPI_BUS         BUS_SPI2
@@ -49,6 +51,10 @@
 #define MAG_I2C_BUS             BUS_I2C1
 #define USE_MAG_HMC5883
 #define USE_MAG_QMC5883
+#define USE_MAG_IST8310
+#define USE_MAG_IST8308
+#define USE_MAG_MAG3110
+#define USE_MAG_LIS3MDL
 
 #define USE_SPI
 #define USE_SPI_DEVICE_2 // PB12,13,14,15 on AF5
@@ -62,7 +68,7 @@
 
 #define USE_FLASH_M25P16
 #define M25P16_CS_PIN           PB12
-#define M25P16_SPI_INSTANCE     SPI2
+#define M25P16_SPI_BUS          BUS_SPI2
 #define ENABLE_BLACKBOX_LOGGING_ON_SPIFLASH_BY_DEFAULT
 
 #define USE_BARO
@@ -90,7 +96,6 @@
 #define RX_MISO_PIN                 PB14
 #define RX_SPI_INSTANCE             SPI2
 #define RX_IRQ_PIN                  PB3
-#define USB_IO
 
 #define USE_VCP
 #define USE_UART1
@@ -127,7 +132,7 @@
 #define WS2811_DMA_STREAM               DMA1_Channel2
 #define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH2_HANDLER
 
-#define DEFAULT_FEATURES        (FEATURE_BLACKBOX | FEATURE_OSD | FEATURE_VBAT)
+#define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_BLACKBOX | FEATURE_OSD | FEATURE_VBAT)
 #define DEFAULT_RX_TYPE         RX_TYPE_PPM
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
@@ -135,7 +140,6 @@
 // Number of available PWM outputs
 #define MAX_PWM_OUTPUT_PORTS    10
 #define TARGET_MOTOR_COUNT      10
-#define USE_SERVOS
 
 // IO - stm32f303cc in 48pin package
 #define TARGET_IO_PORTA         0xffff
@@ -143,6 +147,3 @@
 #define TARGET_IO_PORTC         0xffff
 #define TARGET_IO_PORTD         0xffff
 #define TARGET_IO_PORTF         (BIT(4))
-
-#define USABLE_TIMER_CHANNEL_COUNT 11
-#define USED_TIMERS             (TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4))

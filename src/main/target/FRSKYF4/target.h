@@ -17,13 +17,10 @@
 
 #define TARGET_BOARD_IDENTIFIER "FRF4"
 #define USBD_PRODUCT_STRING "FRSKYF4"
-#define TARGET_CONFIG
 
 #define LED0                    PB5
 #define BEEPER                  PB4
 #define BEEPER_INVERTED
-
-#define INVERTER_PIN_UART6      PC8
 
 #define MPU6000_CS_PIN          PA4
 #define MPU6000_SPI_BUS         BUS_SPI1
@@ -37,7 +34,7 @@
 #define ACC_MPU6000_ALIGN       CW270_DEG
 
 #define USE_EXTI
-#define MPU_INT_EXTI            PC4
+#define GYRO_INT_EXTI            PC4
 #define USE_MPU_DATA_READY_SIGNAL
 
 #define USE_BARO
@@ -53,14 +50,16 @@
 #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 
 #define USE_SDCARD
+#define USE_SDCARD_SPI
 #define SDCARD_DETECT_INVERTED
-#define SDCARD_DETECT_PIN               PB7
-#define SDCARD_SPI_INSTANCE             SPI2
-#define SDCARD_SPI_CS_PIN               SPI2_NSS_PIN
+#define SDCARD_DETECT_PIN       PB7
+#define SDCARD_SPI_BUS          BUS_SPI2
+#define SDCARD_CS_PIN           SPI2_NSS_PIN
 
-#define USB_IO
 #define USE_VCP
 #define VBUS_SENSING_PIN PC5
+
+#define USE_UART_INVERTER
 
 #define USE_UART1
 #define UART1_RX_PIN            PA10
@@ -73,6 +72,7 @@
 #define USE_UART6
 #define UART6_RX_PIN            PC7
 #define UART6_TX_PIN            PC6
+#define INVERTER_PIN_UART6_RX   PC8
 
 #define SERIAL_PORT_COUNT       4   // VCP, UART1, UART3, UART6
 
@@ -84,6 +84,7 @@
 #define SPI2_SCK_PIN            PB13
 #define SPI2_MISO_PIN           PB14
 #define SPI2_MOSI_PIN           PB15
+#define SPI2_CLOCK_LEADING_EDGE
 
 #define USE_SPI_DEVICE_3
 #define SPI3_NSS_PIN            PA15
@@ -101,7 +102,7 @@
 #undef USE_RX_PPM
 
 #define DEFAULT_RX_TYPE         RX_TYPE_SERIAL
-#define DEFAULT_FEATURES        (FEATURE_OSD | FEATURE_TELEMETRY)
+#define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_OSD | FEATURE_TELEMETRY)
 #define SERIALRX_PROVIDER       SERIALRX_SBUS
 #define TELEMETRY_UART          SERIAL_PORT_USART6
 #define SERIALRX_UART           SERIAL_PORT_USART1
@@ -113,6 +114,4 @@
 #define TARGET_IO_PORTC (0xffff & ~(BIT(15)|BIT(14)|BIT(13)))
 #define TARGET_IO_PORTD BIT(2)
 
-#define USABLE_TIMER_CHANNEL_COUNT  7
 #define MAX_PWM_OUTPUT_PORTS        6
-#define USED_TIMERS ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) )

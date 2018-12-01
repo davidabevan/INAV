@@ -25,7 +25,7 @@
 #define BEEPER_INVERTED
 
 #define USE_EXTI
-#define MPU_INT_EXTI            PC4
+#define GYRO_INT_EXTI            PC4
 #define USE_MPU_DATA_READY_SIGNAL
 #define ENSURE_MPU_DATA_READY_IS_LOW
 
@@ -60,6 +60,7 @@
 #define USE_MAG_HMC5883
 #define USE_MAG_MAG3110
 #define USE_MAG_QMC5883
+#define USE_MAG_LIS3MDL
 
 #define USE_BARO
 #define BARO_I2C_BUS             BUS_I2C1
@@ -85,31 +86,19 @@
 #ifdef USE_FLASHFS
 #define USE_FLASH_M25P16
 #define M25P16_CS_PIN           PB12
-#define M25P16_SPI_INSTANCE     SPI2
+#define M25P16_SPI_BUS          BUS_SPI2
 #define ENABLE_BLACKBOX_LOGGING_ON_SPIFLASH_BY_DEFAULT
 #endif
 
 #ifdef USE_SDCARD
-#define USE_SDCARD_SPI2
+#define USE_SDCARD_SPI
+#define SPI2_CLOCK_LEADING_EDGE
 
 #define SDCARD_DETECT_INVERTED
-
-#define SDCARD_DETECT_PIN                   PB2
-#define SDCARD_DETECT_EXTI_LINE             EXTI_Line2
-#define SDCARD_DETECT_EXTI_PIN_SOURCE       EXTI_PinSource2
-#define SDCARD_DETECT_EXTI_PORT_SOURCE      EXTI_PortSourceGPIOB
-#define SDCARD_DETECT_EXTI_IRQn             EXTI15_10_IRQn
-
-#define SDCARD_SPI_INSTANCE                 SPI2
-#define SDCARD_SPI_CS_GPIO                  SPI2_GPIO
-#define SDCARD_SPI_CS_PIN                   SPI2_NSS_PIN
-
-// Note, this is the same DMA channel as UART1_RX. Luckily we don't use DMA for USART Rx.
-#define SDCARD_DMA_CHANNEL_TX               DMA1_Channel5
-#define SDCARD_DMA_CHANNEL_TX_COMPLETE_FLAG DMA1_FLAG_TC5
+#define SDCARD_DETECT_PIN       PB2
+#define SDCARD_SPI_BUS          BUS_SPI2
+#define SDCARD_CS_PIN           SPI2_NSS_PIN
 #endif
-
-#define USB_IO
 
 #define USE_VCP
 #define USE_UART1
@@ -147,20 +136,14 @@
 #define CURRENT_METER_ADC_CHANNEL       ADC_CHN_3
 
 #define USE_LED_STRIP
-#define USE_LED_STRIP_ON_DMA1_CHANNEL2
 #define WS2811_PIN                      PA8
-#define WS2811_TIMER                    TIM1
-#define WS2811_DMA_STREAM               DMA1_Channel2
-#define WS2811_IRQ                      DMA1_Channel2_IRQn
-#define WS2811_DMA_TC_FLAG              DMA1_FLAG_TC2
-#define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH2_HANDLER
 
 #define USE_RANGEFINDER
 #define USE_RANGEFINDER_HCSR04
 #define RANGEFINDER_HCSR04_TRIGGER_PIN       PB0 // RC_CH7 (PB0) - only 3.3v ( add a 1K Ohms resistor )
 #define RANGEFINDER_HCSR04_ECHO_PIN          PB1 // RC_CH8 (PB1) - only 3.3v ( add a 1K Ohms resistor )
 
-#define DEFAULT_FEATURES        FEATURE_BLACKBOX
+#define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_BLACKBOX)
 #define DEFAULT_RX_TYPE         RX_TYPE_PPM
 
 #define USE_SPEKTRUM_BIND
@@ -178,6 +161,3 @@
 #define TARGET_IO_PORTC         0xffff
 #define TARGET_IO_PORTD         0xffff
 #define TARGET_IO_PORTF         (BIT(4))
-
-#define USABLE_TIMER_CHANNEL_COUNT 8
-#define USED_TIMERS             (TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(16) |TIM_N(17))

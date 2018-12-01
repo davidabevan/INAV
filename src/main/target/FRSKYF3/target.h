@@ -18,14 +18,13 @@
 #pragma once
 
 #define TARGET_BOARD_IDENTIFIER "FRF3"
-#define TARGET_CONFIG
 
 #define LED0_PIN                PB3
 #define BEEPER                  PC15
 #define BEEPER_INVERTED
 
 #define USE_EXTI
-#define MPU_INT_EXTI            PC13
+#define GYRO_INT_EXTI            PC13
 #define USE_MPU_DATA_READY_SIGNAL
 #define MPU_ADDRESS             0x69
 
@@ -83,13 +82,14 @@
 #define SPI1_SCK_PIN            PA5
 #define SPI1_MISO_PIN           PA6
 #define SPI1_MOSI_PIN           PA7
+#define SPI1_CLOCK_LEADING_EDGE
 
 #define USE_SDCARD
-
+#define USE_SDCARD_SPI
 #define SDCARD_DETECT_INVERTED
-#define SDCARD_DETECT_PIN                   PB5
-#define SDCARD_SPI_INSTANCE                 SPI1
-#define SDCARD_SPI_CS_PIN                   SPI1_NSS_PIN
+#define SDCARD_DETECT_PIN       PB5
+#define SDCARD_SPI_BUS          BUS_SPI1
+#define SDCARD_CS_PIN           SPI1_NSS_PIN
 
 #define USE_ADC
 #define ADC_INSTANCE                ADC2
@@ -104,11 +104,9 @@
 
 #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 
-#define DEFAULT_RX_FEATURE      FEATURE_RX_SERIAL
 #define SERIALRX_PROVIDER       SERIALRX_SBUS
 
-#define DEFAULT_FEATURES        ( FEATURE_TELEMETRY | FEATURE_OSD)
-#define DEFAULT_RX_FEATURE      FEATURE_RX_SERIAL
+#define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_TELEMETRY | FEATURE_OSD)
 #define SERIALRX_PROVIDER       SERIALRX_SBUS
 #define TELEMETRY_UART          SERIAL_PORT_USART3
 #define SERIALRX_UART           SERIAL_PORT_USART2
@@ -121,6 +119,3 @@
 #define TARGET_IO_PORTB         0xffff
 #define TARGET_IO_PORTC         (BIT(13)|BIT(14)|BIT(15))
 #define TARGET_IO_PORTF         (BIT(0)|BIT(1)|BIT(4))
-
-#define USABLE_TIMER_CHANNEL_COUNT 8
-#define USED_TIMERS             (TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(8) | TIM_N(17))

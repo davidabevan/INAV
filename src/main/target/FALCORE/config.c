@@ -42,9 +42,8 @@
 
 void targetConfiguration(void)
 {
-    systemConfigMutable()->asyncMode = ASYNC_MODE_NONE;
-    mixerConfigMutable()->mixerMode = MIXER_QUADX;
-    
+    mixerConfigMutable()->platformType = PLATFORM_MULTIROTOR;
+
     featureSet(FEATURE_VBAT);
     featureSet(FEATURE_GPS);
     featureSet(FEATURE_TELEMETRY);
@@ -58,60 +57,58 @@ void targetConfiguration(void)
     serialConfigMutable()->portConfigs[3].functionMask = FUNCTION_NONE;         // UART4
     serialConfigMutable()->portConfigs[4].functionMask = FUNCTION_TELEMETRY_MAVLINK;    // UART5
 
-    
+
     gyroConfigMutable()->looptime = 1000;
     gyroConfigMutable()->gyroSync = 1;
-    gyroConfigMutable()->gyroSyncDenominator = 8;
     gyroConfigMutable()->gyro_lpf = 0;              // 256 Hz
     gyroConfigMutable()->gyro_soft_lpf_hz = 90;
     gyroConfigMutable()->gyro_soft_notch_hz_1 = 150;
     gyroConfigMutable()->gyro_soft_notch_cutoff_1 = 80;
-    
+
     accelerometerConfigMutable()->acc_hardware = ACC_MPU6500;
     accelerometerConfigMutable()->acc_lpf_hz = 15;
-    
+
     compassConfigMutable()->mag_hardware = MAG_HMC5883;
     compassConfigMutable()->mag_align = CW270_DEG_FLIP;
-    
+
     barometerConfigMutable()->baro_hardware = BARO_MS5607;
     barometerConfigMutable()->use_median_filtering = 1;
-    
+
     rxConfigMutable()->receiverType = RX_TYPE_SERIAL;
     rxConfigMutable()->serialrx_provider = SERIALRX_IBUS;
     rxConfigMutable()->mincheck = 1100;
     rxConfigMutable()->maxcheck = 1900;
-    
+
     blackboxConfigMutable()->rate_num = 1;
     blackboxConfigMutable()->rate_denom = 4;
-    
+
     motorConfigMutable()->minthrottle = 1015;
     motorConfigMutable()->maxthrottle = 2000;
     motorConfigMutable()->mincommand = 980;
     motorConfigMutable()->motorPwmRate = 2000;
     motorConfigMutable()->motorPwmProtocol = PWM_TYPE_ONESHOT125;
-    
+
     failsafeConfigMutable()->failsafe_delay = 5;
     failsafeConfigMutable()->failsafe_recovery_delay = 5;
     failsafeConfigMutable()->failsafe_off_delay = 200;
     failsafeConfigMutable()->failsafe_throttle = 1200;
-    failsafeConfigMutable()->failsafe_throttle_low_delay = 100;
     failsafeConfigMutable()->failsafe_procedure = FAILSAFE_PROCEDURE_RTH;
-    
+
     boardAlignmentMutable()->rollDeciDegrees = 0;
     boardAlignmentMutable()->pitchDeciDegrees = 165;
     boardAlignmentMutable()->yawDeciDegrees = 0;
-    
+
     mixerConfigMutable()->yaw_jump_prevention_limit = 200;
-    
+
     imuConfigMutable()->small_angle = 30;
-    
+
     gpsConfigMutable()->provider = GPS_UBLOX;
     gpsConfigMutable()->sbasMode = SBAS_NONE;
     gpsConfigMutable()->dynModel = GPS_DYNMODEL_AIR_1G;
     gpsConfigMutable()->autoConfig = 1;
     gpsConfigMutable()->autoBaud = 1;
     gpsConfigMutable()->gpsMinSats = 7;
-    
+
     rcControlsConfigMutable()->deadband = 10;
     rcControlsConfigMutable()->yaw_deadband = 15;
 
@@ -119,17 +116,17 @@ void targetConfiguration(void)
     navConfigMutable()->general.flags.use_thr_mid_for_althold = 1;
     navConfigMutable()->general.flags.extra_arming_safety = 1;
     navConfigMutable()->general.flags.rth_allow_landing = NAV_RTH_ALLOW_LANDING_ALWAYS;
-    
+
     navConfigMutable()->general.max_auto_speed = 500;
     navConfigMutable()->general.max_auto_climb_rate = 200;
     navConfigMutable()->general.max_manual_speed = 500;
     navConfigMutable()->general.max_manual_climb_rate = 200;
     navConfigMutable()->general.rth_altitude = 1000;
-    
+
     navConfigMutable()->mc.max_bank_angle = 30;
     navConfigMutable()->mc.hover_throttle = 1500;
     navConfigMutable()->mc.auto_disarm_delay = 2000;
-    
+
     /*
     aux 0 0 0 1150 2100
     aux 1 2 0 1300 1700
@@ -153,7 +150,7 @@ void targetConfiguration(void)
     configureModeActivationCondition(3, BOXNAVPOSHOLD,  3, 1300, 1700);
     configureModeActivationCondition(4, BOXNAVRTH,      3, 1700, 2100);
     configureModeActivationCondition(5, BOXANGLE,       3, 1700, 2100);
-    
+
     // Rates and PIDs
     setConfigProfile(0);
     pidProfileMutable()->bank_mc.pid[PID_PITCH].P = 65;
@@ -168,7 +165,7 @@ void targetConfiguration(void)
     pidProfileMutable()->bank_mc.pid[PID_LEVEL].P = 20;
     pidProfileMutable()->bank_mc.pid[PID_LEVEL].I = 10;
     pidProfileMutable()->bank_mc.pid[PID_LEVEL].D = 75;
-    
+
     pidProfileMutable()->max_angle_inclination[FD_ROLL] = 300;
     pidProfileMutable()->max_angle_inclination[FD_PITCH] = 300;
     pidProfileMutable()->dterm_lpf_hz = 70;
@@ -178,8 +175,6 @@ void targetConfiguration(void)
     pidProfileMutable()->dterm_soft_notch_cutoff = 1;
     pidProfileMutable()->pidSumLimit = 500;
     pidProfileMutable()->yaw_p_limit = 300;
-    pidProfileMutable()->rollPitchItermIgnoreRate = 200;
-    pidProfileMutable()->yawItermIgnoreRate = 200;
     pidProfileMutable()->axisAccelerationLimitRollPitch = 0;
     pidProfileMutable()->axisAccelerationLimitYaw = 10000;
 
@@ -196,13 +191,13 @@ void targetConfiguration(void)
     pidProfileMutable()->bank_mc.pid[PID_VEL_XY].I = 20;
     pidProfileMutable()->bank_mc.pid[PID_VEL_XY].D = 70;
 
-    ((controlRateConfig_t*)currentControlRateProfile)->rcExpo8 = 60;
-    ((controlRateConfig_t*)currentControlRateProfile)->rcYawExpo8 = 35;
-    ((controlRateConfig_t*)currentControlRateProfile)->rates[FD_ROLL] = 54;
-    ((controlRateConfig_t*)currentControlRateProfile)->rates[FD_PITCH] = 54;
-    ((controlRateConfig_t*)currentControlRateProfile)->rates[FD_YAW] = 36;
-    ((controlRateConfig_t*)currentControlRateProfile)->thrMid8 = 50;
-    ((controlRateConfig_t*)currentControlRateProfile)->thrExpo8 = 0;
-    ((controlRateConfig_t*)currentControlRateProfile)->dynThrPID = 10;
-    ((controlRateConfig_t*)currentControlRateProfile)->tpa_breakpoint = 1600;
+    ((controlRateConfig_t*)currentControlRateProfile)->stabilized.rcExpo8 = 60;
+    ((controlRateConfig_t*)currentControlRateProfile)->stabilized.rcYawExpo8 = 35;
+    ((controlRateConfig_t*)currentControlRateProfile)->stabilized.rates[FD_ROLL] = 54;
+    ((controlRateConfig_t*)currentControlRateProfile)->stabilized.rates[FD_PITCH] = 54;
+    ((controlRateConfig_t*)currentControlRateProfile)->stabilized.rates[FD_YAW] = 36;
+    ((controlRateConfig_t*)currentControlRateProfile)->throttle.rcMid8 = 50;
+    ((controlRateConfig_t*)currentControlRateProfile)->throttle.rcExpo8 = 0;
+    ((controlRateConfig_t*)currentControlRateProfile)->throttle.dynPID = 10;
+    ((controlRateConfig_t*)currentControlRateProfile)->throttle.pa_breakpoint = 1600;
 }

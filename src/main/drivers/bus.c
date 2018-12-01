@@ -47,6 +47,7 @@ static void busDevPreInit_SPI(const busDeviceDescriptor_t * descriptor)
 static void busDevPreInit(const busDeviceDescriptor_t * descriptor)
 {
     switch (descriptor->busType) {
+        default:
         case BUSTYPE_NONE:
             break;
 
@@ -121,6 +122,7 @@ busDevice_t * busDeviceInit(busType_e bus, devHardwareType_e hw, uint8_t tag, re
 
             if (dev) {
                 switch (descriptor->busType) {
+                    default:
                     case BUSTYPE_NONE:
                         return NULL;
 
@@ -180,6 +182,7 @@ void busSetSpeed(const busDevice_t * dev, busSpeed_e speed)
     UNUSED(speed);
 
     switch (dev->busType) {
+        default:
         case BUSTYPE_NONE:
             // Not available
             break;
@@ -196,35 +199,47 @@ void busSetSpeed(const busDevice_t * dev, busSpeed_e speed)
 
 uint32_t busDeviceReadScratchpad(const busDevice_t * dev)
 {
-    return dev->scratchpad;
+    return dev->scratchpad[0];
 }
 
 void busDeviceWriteScratchpad(busDevice_t * dev, uint32_t value)
 {
-    dev->scratchpad = value;
+    dev->scratchpad[0] = value;
+}
+
+void * busDeviceGetScratchpadMemory(const busDevice_t * dev)
+{
+    return (void *)dev->scratchpad;
 }
 
 bool busTransfer(const busDevice_t * dev, uint8_t * rxBuf, const uint8_t * txBuf, int length)
 {
+#ifdef USE_SPI
+    return spiBusTransfer(dev, rxBuf, txBuf, length);
+#else
+    UNUSED(dev);
     UNUSED(rxBuf);
     UNUSED(txBuf);
     UNUSED(length);
-
-    switch (dev->busType) {
-        case BUSTYPE_SPI:
-#ifdef USE_SPI
-            return spiBusTransfer(dev, rxBuf, txBuf, length);
-#else
-            return false;
 #endif
 
-        case BUSTYPE_I2C:
-            // Raw transfer operation is not supported on I2C
-            return false;
+    return false;
+}
 
-        default:
-            return false;
+bool busTransferMultiple(const busDevice_t * dev, busTransferDescriptor_t * dsc, int count)
+{
+#ifdef USE_SPI
+    // busTransfer function is only supported on SPI bus
+    if (dev->busType == BUSTYPE_SPI) {
+        return spiBusTransferMultiple(dev, dsc, count);
     }
+#else
+    UNUSED(dev);
+    UNUSED(dsc);
+    UNUSED(count);
+#endif
+
+    return false;
 }
 
 bool busWriteBuf(const busDevice_t * dev, uint8_t reg, const uint8_t * data, uint8_t length)
@@ -329,6 +344,43 @@ bool busRead(const busDevice_t * dev, uint8_t reg, uint8_t * data)
 #else
             return false;
 #endif
+
+        default:
+            return false;
+    }
+}
+
+void busSelectDevice(const busDevice_t * dev)
+{
+#ifdef USE_SPI
+    if (dev->busType == BUSTYPE_SPI && (dev->flags & DEVFLAGS_USE_MANUAL_DEVICE_SELECT)) {
+        spiBusSelectDevice(dev);
+    }
+#endif
+}
+
+void busDeselectDevice(const busDevice_t * dev)
+{
+#ifdef USE_SPI
+    if (dev->busType == BUSTYPE_SPI && (dev->flags & DEVFLAGS_USE_MANUAL_DEVICE_SELECT)) {
+        spiBusDeselectDevice(dev);
+    }
+#endif
+}
+
+bool busIsBusy(const busDevice_t * dev)
+{
+    switch (dev->busType) {
+        case BUSTYPE_SPI:
+#ifdef USE_SPI
+            return spiBusIsBusy(dev);
+#else
+            return false;
+#endif
+
+        case BUSTYPE_I2C:
+            // Not implemented for I2C, respond as always free
+            return false;
 
         default:
             return false;

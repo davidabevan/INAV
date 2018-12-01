@@ -48,6 +48,7 @@
 #define ACC_MPU6500_ALIGN       CW180_DEG_FLIP
 #define GYRO_MPU9250_ALIGN      CW180_DEG_FLIP
 #define ACC_MPU9250_ALIGN       CW180_DEG_FLIP
+#define MAG_MPU9250_ALIGN       CW90_DEG
 
 #define USE_DUAL_GYRO
 
@@ -67,8 +68,12 @@
 #define USE_MAG
 #define MAG_I2C_BUS             BUS_I2C1
 #define USE_MAG_MPU9250
-#define USE_MAG_QMC5883
 #define USE_MAG_HMC5883
+#define USE_MAG_QMC5883
+#define USE_MAG_IST8310
+#define USE_MAG_IST8308
+#define USE_MAG_MAG3110
+#define USE_MAG_LIS3MDL
 
 #define USE_BARO
 #define USE_BARO_MS5611
@@ -87,14 +92,11 @@
 #define SDCARD_DMA_CHANNEL                  DMA_Channel_0
 */
 
-#define USABLE_TIMER_CHANNEL_COUNT 7
-
 // MPU9250 interrupt
 #define USE_MPU_DATA_READY_SIGNAL
 #define ENSURE_MPU_DATA_READY_IS_LOW
 #define EXTI_CALLBACK_HANDLER_COUNT 1 // MPU data ready
 
-#define USB_IO
 #define USE_VCP
 #define VBUS_SENSING_PIN PA9
 #define VBUS_SENSING_ENABLED
@@ -165,7 +167,7 @@
 #define SERIALRX_UART           SERIAL_PORT_USART6
 
 #define DEFAULT_RX_TYPE         RX_TYPE_PPM
-#define DEFAULT_FEATURES        FEATURE_BLACKBOX
+#define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_BLACKBOX)
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
 
@@ -177,5 +179,3 @@
 #define TARGET_IO_PORTC         0xffff
 #define TARGET_IO_PORTD         0xffff
 #define TARGET_IO_PORTE         0xffff
-
-#define USED_TIMERS             ( TIM_N(1) | TIM_N(3) | TIM_N(4))

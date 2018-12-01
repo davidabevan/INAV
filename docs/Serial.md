@@ -16,7 +16,7 @@ a dedicated USB to UART adapter.  VCP does not 'use' a physical UART port.
 UART is the most efficient in terms of CPU usage.
 SoftSerial is the least efficient and slowest, SoftSerial should only be used for low-bandwidth usages, such as telemetry transmission.
 
-UART ports are sometimes exposed via on-board USB to UART converters, such as the CP2102 as found on the Naze and Flip32 boards.
+UART ports are sometimes exposed via on-board USB to UART converters, such as the CP2102.
 If the flight controller does not have an on-board USB to UART converter and doesn't support VCP then an external USB to UART board is required.
 These are sometimes referred to as FTDI boards.  FTDI is just a common manufacturer of a chip (the FT232RL) used on USB to UART boards.
 
@@ -72,11 +72,21 @@ The allowable baud rates are as follows:
 
 | Identifier | Baud rate |
 | ---------- | --------- |
-| 0          | Auto      |
-| 1          | 9600      |
-| 2          | 19200     |
-| 3          | 38400     |
-| 4          | 57600     |
-| 5          | 115200    |
-| 6          | 230400    |
-| 7          | 250000    |
+|  0         |    Auto   |
+|  1         |    1200   |
+|  2         |    2400   |
+|  3         |    4800   |
+|  4         |    9600   |
+|  5         |   19200   |
+|  6         |   38400   |
+|  7         |   57600   |
+|  8         |  115200   |
+|  9         |  230400   |
+| 10         |  250000   |
+| 11         |  460800   |
+| 12         |  921600   |
+| 13         | 1000000   |
+| 14         | 1500000   |
+| 15         | 2000000   |
+| 16         | 2470000   |
+

@@ -26,7 +26,7 @@
 #define BEEPER_INVERTED
 
 #define USE_EXTI
-#define MPU_INT_EXTI            PA15
+#define GYRO_INT_EXTI            PA15
 #define USE_MPU_DATA_READY_SIGNAL
 
 #define USE_GYRO
@@ -46,10 +46,12 @@
 
 #define USE_MAG
 #define MAG_I2C_BUS            BUS_I2C2
-#define USE_MAG_HMC5883 // External
-#define USE_MAG_QMC5883 // External
-
-#define USB_IO
+#define USE_MAG_HMC5883
+#define USE_MAG_QMC5883
+#define USE_MAG_IST8310
+#define USE_MAG_IST8308
+#define USE_MAG_MAG3110
+#define USE_MAG_LIS3MDL
 
 #define USE_VCP
 #define USE_UART1
@@ -90,10 +92,7 @@
 #define RSSI_ADC_CHANNEL                ADC_CHN_3
 
 #define USE_LED_STRIP // LED strip configuration using PWM motor output pin 5.
-#define USE_LED_STRIP_ON_DMA1_CHANNEL3
 #define WS2811_PIN                      PB8 // TIM16_CH1
-#define WS2811_DMA_STREAM               DMA1_Channel3
-#define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH3_HANDLER
 
 #define USE_RANGEFINDER
 #define USE_RANGEFINDER_HCSR04
@@ -102,7 +101,7 @@
 
 #define SENSORS_SET (SENSOR_ACC | SENSOR_BARO | SENSOR_GPS | SENSOR_MAG)
 
-#define DEFAULT_FEATURES        FEATURE_VBAT
+#define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_VBAT)
 #define DEFAULT_RX_TYPE         RX_TYPE_SERIAL
 #define SERIALRX_PROVIDER       SERIALRX_SBUS
 #define SERIALRX_UART           SERIAL_PORT_USART2
@@ -120,5 +119,4 @@
 #define TARGET_IO_PORTC         (BIT(13)|BIT(14)|BIT(15))
 #define TARGET_IO_PORTF         (BIT(0)|BIT(1)|BIT(4))
 
-#define USABLE_TIMER_CHANNEL_COUNT 7
-#define USED_TIMERS             (TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(16) | TIM_N(17))
+#define PCA9685_I2C_BUS         BUS_I2C2

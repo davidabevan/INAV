@@ -26,7 +26,7 @@
 #define BEEPER_INVERTED
 
 #define USE_EXTI
-#define MPU_INT_EXTI            PC13
+#define GYRO_INT_EXTI            PC13
 #define EXTI_CALLBACK_HANDLER_COUNT 1 // MPU INT
 #define USE_MPU_DATA_READY_SIGNAL
 #define ENSURE_MPU_DATA_READY_IS_LOW
@@ -85,14 +85,10 @@
 
 /*
 #define USE_LED_STRIP
-#define WS2811_TIMER                    TIM3
 #define WS2811_PIN                      PA6
-#define WS2811_DMA_CHANNEL              DMA1_Channel6
-#define WS2811_DMA_TC_FLAG              DMA1_FLAG_TC6
-#define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH6_HANDLER
 */
 
-#define DEFAULT_FEATURES        FEATURE_VBAT | FEATURE_SOFTSERIAL
+#define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_VBAT | FEATURE_SOFTSERIAL)
 #define DEFAULT_RX_TYPE         RX_TYPE_SERIAL
 #define SERIALRX_PROVIDER       SERIALRX_SBUS
 #define SERIALRX_UART           SERIAL_PORT_USART2
@@ -109,16 +105,17 @@
     #define USE_MAG
     #define MAG_I2C_BUS                 BUS_I2C1
     #define USE_MAG_HMC5883
-    #define USE_MAG_QMC5883
     #define USE_MAG_MAG3110
+    #define USE_MAG_QMC5883
+    #define USE_MAG_IST8310
+    #define USE_MAG_IST8308
+    #define USE_MAG_LIS3MDL
 
     #define MAX_PWM_OUTPUT_PORTS        8
     #define TARGET_MOTOR_COUNT          4
-    #define USABLE_TIMER_CHANNEL_COUNT  10
 #else
     #define MAX_PWM_OUTPUT_PORTS        10
     #define TARGET_MOTOR_COUNT          6
-    #define USABLE_TIMER_CHANNEL_COUNT  12
 #endif
 
 #define USE_SPEKTRUM_BIND
@@ -132,5 +129,3 @@
 #define TARGET_IO_PORTC         0xffff
 #define TARGET_IO_PORTD         0xffff
 #define TARGET_IO_PORTF         (BIT(4))
-
-#define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) )

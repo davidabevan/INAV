@@ -15,6 +15,10 @@
  * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
 #define DEBUG16_VALUE_COUNT 4
 extern int16_t debug[DEBUG16_VALUE_COUNT];
 extern uint8_t debugMode;
@@ -50,9 +54,33 @@ typedef enum {
     DEBUG_NOTCH,
     DEBUG_NAV_LANDING_DETECTOR,
     DEBUG_FW_CLIMB_RATE_TO_ALTITUDE,
-    DEBUG_RANGEFINDER,
-    DEBUG_RANGEFINDER_QUALITY,
-    DEBUG_PITOT,
     DEBUG_AGL,
+    DEBUG_FLOW_RAW,
+    DEBUG_FLOW,
+    DEBUG_SBUS,
+    DEBUG_FPORT,
+    DEBUG_ALWAYS,
+    DEBUG_STAGE2,
+    DEBUG_WIND_ESTIMATOR,
+    DEBUG_SAG_COMP_VOLTAGE,
+    DEBUG_VIBE,
+    DEBUG_CRUISE,
+    DEBUG_REM_FLIGHT_TIME,
+    DEBUG_SMARTAUDIO,
     DEBUG_COUNT
 } debugType_e;
+
+#if defined(USE_DEBUG_TRACE)
+void debugTraceInit(void);
+void debugTracePrintf(bool synchronous, const char *format, ...);
+void debugTracePrintBufferHex(bool synchronous, const void *buffer, size_t size);
+#define DEBUG_TRACE(fmt, ...)                   debugTracePrintf(false, fmt, ##__VA_ARGS__)
+#define DEBUG_TRACE_SYNC(fmt, ...)              debugTracePrintf(true, fmt, ##__VA_ARGS__)
+#define DEBUG_TRACE_BUFFER_HEX(buf, size)       debugTracePrintBufferHex(false, buf, size)
+#define DEBUG_TRACE_BUFFER_HEX_SYNC(buf, size)  debugTracePrintBufferHex(true, buf, size)
+#else
+#define DEBUG_TRACE(fmt, ...)
+#define DEBUG_TRACE_SYNC(fmt, ...)
+#define DEBUG_TRACE_BUFFER_HEX(buf, size)
+#define DEBUG_TRACE_BUFFER_HEX_SYNC(buf, size)
+#endif

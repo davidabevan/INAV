@@ -27,7 +27,7 @@
 
 // MPU6050 interrupts
 #define USE_EXTI
-#define MPU_INT_EXTI            PA15
+#define GYRO_INT_EXTI            PA15
 #define USE_MPU_DATA_READY_SIGNAL
 
 #define USE_GYRO
@@ -52,8 +52,12 @@
 
 //#define USE_MAG
 //#define USE_MAG_HMC5883
+//#define USE_MAG_QMC5883
+//#define USE_MAG_IST8310
+//#define USE_MAG_IST8308
+//#define USE_MAG_MAG3110
+//#define USE_MAG_LIS3MDL
 
-#define USB_IO
 #define USE_VCP
 #define USE_UART1
 #define USE_UART2
@@ -78,7 +82,7 @@
 #define USE_SPI_DEVICE_2
 
 #define M25P16_CS_PIN           PB12
-#define M25P16_SPI_INSTANCE     SPI2
+#define M25P16_SPI_BUS          BUS_SPI2
 
 //#define SENSORS_SET             (SENSOR_ACC | SENSOR_BARO | SENSOR_GPS | SENSOR_MAG)
 #define SENSORS_SET             (SENSOR_ACC)
@@ -98,11 +102,6 @@
 
 #define USE_LED_STRIP_ON_DMA1_CHANNEL3
 #define WS2811_PIN                      PB8 // TIM16_CH1
-#define WS2811_TIMER                    TIM16
-#define WS2811_DMA_STREAM               DMA1_Channel3
-#define WS2811_IRQ                      DMA1_Channel3_IRQn
-#define WS2811_DMA_TC_FLAG              DMA1_FLAG_TC3
-#define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH3_HANDLER
 
 
 #define USE_SPEKTRUM_BIND
@@ -128,6 +127,4 @@
 // !!TODO - check the following line is correct
 #define TARGET_IO_PORTF         (BIT(0)|BIT(1)|BIT(3)|BIT(4))
 
-#define USABLE_TIMER_CHANNEL_COUNT 10
-#define USED_TIMERS             (TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(8) | TIM_N(15) | TIM_N(16) | TIM_N(17))
-
+#define PCA9685_I2C_BUS         BUS_I2C2

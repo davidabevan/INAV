@@ -18,10 +18,10 @@
 #include "drivers/resource.h"
 
 const char * const ownerNames[OWNER_TOTAL_COUNT] = {
-    "FREE", "PWM", "PPM", "MOTOR", "SERVO", "SOFTSERIAL", "ADC", "SERIAL", "DEBUG", "TIMER",
+    "FREE", "PWM/IO", "PWM", "PPM", "MOTOR", "SERVO", "SOFTSERIAL", "ADC", "SERIAL", "DEBUG", "TIMER",
     "RANGEFINDER", "SYSTEM", "SPI", "I2C", "SDCARD", "FLASH", "USB", "BEEPER", "OSD",
     "BARO", "MPU", "INVERTER", "LED STRIP", "LED", "RECEIVER", "TRANSMITTER",
-    "SOFTSPI", "NRF24", "VTX", "SPI_PREINIT", "COMPASS"
+    "NRF24", "VTX", "SPI_PREINIT", "COMPASS", "AIRSPEED", "OLED DISPLAY", "PINIO"
 };
 
 const char * const resourceNames[RESOURCE_TOTAL_COUNT] = {

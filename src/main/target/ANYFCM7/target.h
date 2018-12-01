@@ -40,14 +40,18 @@
 
 // MPU6000 interrupts
 #define USE_MPU_DATA_READY_SIGNAL
-#define MPU_INT_EXTI PC4
+#define GYRO_INT_EXTI PC4
 #define USE_EXTI
 
 #define USE_MAG
 #define MAG_I2C_BUS             BUS_I2C2
+#define MAG_HMC5883_ALIGN       CW270_DEG_FLIP
 #define USE_MAG_HMC5883
 #define USE_MAG_QMC5883
-#define MAG_HMC5883_ALIGN       CW270_DEG_FLIP
+#define USE_MAG_IST8310
+#define USE_MAG_IST8308
+#define USE_MAG_MAG3110
+#define USE_MAG_LIS3MDL
 
 #define USE_BARO
 #define BARO_I2C_BUS            BUS_I2C2
@@ -56,9 +60,6 @@
 #define USE_PITOT_MS4525
 #define PITOT_I2C_BUS           BUS_I2C2
 
-#define USABLE_TIMER_CHANNEL_COUNT 16
-
-#define USB_IO
 #define USE_VCP
 #define VBUS_SENSING_PIN PA8
 
@@ -109,7 +110,7 @@
 #define SPI3_MOSI_PIN           PC12
 
 #define M25P16_CS_PIN           PB12
-#define M25P16_SPI_INSTANCE     SPI2
+#define M25P16_SPI_BUS          BUS_SPI2
 #define USE_FLASHFS
 #define USE_FLASH_M25P16
 #define ENABLE_BLACKBOX_LOGGING_ON_SPIFLASH_BY_DEFAULT
@@ -140,4 +141,4 @@
 #define TARGET_IO_PORTD 0xffff
 #define TARGET_IO_PORTE 0xffff
 
-#define USED_TIMERS  ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(8) | TIM_N(12))
+#define PCA9685_I2C_BUS         BUS_I2C2

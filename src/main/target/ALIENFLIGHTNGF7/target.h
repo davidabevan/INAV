@@ -17,7 +17,6 @@
 
 #pragma once
 #define TARGET_BOARD_IDENTIFIER "AFF7"
-#define TARGET_CONFIG
 
 #define USE_HARDWARE_REVISION_DETECTION
 #define HW_PIN                  PC13
@@ -33,7 +32,7 @@
 
 // MPU interrupt
 #define USE_EXTI
-#define MPU_INT_EXTI            PC14
+#define GYRO_INT_EXTI            PC14
 #define USE_MPU_DATA_READY_SIGNAL
 #define ENSURE_MPU_DATA_READY_IS_LOW
 
@@ -60,10 +59,14 @@
 #define USE_MAG_AK8963
 #define USE_MAG_MPU9250
 #define USE_MAG_HMC5883
+#define USE_MAG_MAG3110
 #define USE_MAG_QMC5883
+#define USE_MAG_IST8310
+#define USE_MAG_IST8308
+#define USE_MAG_LIS3MDL
 
-#define MAG_AK9863_ALIGN        CW180_DEG_FLIP
-#define MAG_MPU9250_ALIGN       CW180_DEG_FLIP
+#define MAG_AK9863_ALIGN        CW0_DEG
+#define MAG_MPU9250_ALIGN       CW0_DEG
 
 #define AK8963_CS_PIN           PC15
 #define AK8963_SPI_BUS          BUS_SPI3
@@ -80,33 +83,18 @@
 #define BMP280_SPI_BUS          BUS_SPI3
 
 #define USE_SDCARD
-
+#define USE_SDCARD_SPI
 #define SDCARD_DETECT_INVERTED
+#define SDCARD_DETECT_PIN       PB11
+#define SDCARD_SPI_BUS          BUS_SPI2
+#define SDCARD_CS_PIN           PB10
 
-#define SDCARD_DETECT_PIN               PB11
-#define SDCARD_DETECT_EXTI_LINE         EXTI_Line10
-#define SDCARD_DETECT_EXTI_PIN_SOURCE   EXTI_PinSource10
-#define SDCARD_DETECT_EXTI_PORT_SOURCE  EXTI_PortSourceGPIOB
-#define SDCARD_DETECT_EXTI_IRQn         EXTI15_10_IRQn
+#define M25P16_CS_PIN           SPI2_NSS_PIN
+#define M25P16_SPI_BUS          BUS_SPI2
 
-#define SDCARD_SPI_INSTANCE             SPI2
-#define SDCARD_SPI_CS_PIN               PB10
+#define USE_FLASHFS
+#define USE_FLASH_M25P16
 
-#define SDCARD_DMA_CHANNEL_TX               DMA1_Stream4
-#define SDCARD_DMA_CHANNEL_TX_COMPLETE_FLAG DMA_FLAG_TCIF4
-#define SDCARD_DMA_CLK                      RCC_AHB1Periph_DMA1
-#define SDCARD_DMA_CHANNEL                  DMA_CHANNEL_0
-
-// Performance logging for SD card operations:
-// #define AFATFS_USE_INTROSPECTIVE_LOGGING
-
-//#define M25P16_CS_PIN        SPI2_NSS_PIN
-//#define M25P16_SPI_INSTANCE  SPI2
-
-//#define USE_FLASHFS
-//#define USE_FLASH_M25P16
-
-#define USB_IO
 #define USE_VCP
 
 #define USE_UART1
@@ -117,15 +105,15 @@
 #define UART2_RX_PIN            PA3
 #define UART2_TX_PIN            PA2
 
-//#define USE_UART3
-//#define UART3_RX_PIN            PB11
-//#define UART3_TX_PIN            PB10
+#define USE_UART3
+#define UART3_RX_PIN            NONE
+#define UART3_TX_PIN            NONE
 
 #define USE_UART4
 #define UART4_RX_PIN            PC11
 #define UART4_TX_PIN            PC10
 
-#define SERIAL_PORT_COUNT       4
+#define SERIAL_PORT_COUNT       5
 
 //#define USE_ESCSERIAL
 //#define ESCSERIAL_TIMER_TX_HARDWARE 0 // PWM 1
@@ -144,6 +132,7 @@
 #define SPI2_SCK_PIN            PB13
 #define SPI2_MISO_PIN           PC2
 #define SPI2_MOSI_PIN           PC3
+#define SPI2_CLOCK_LEADING_EDGE
 
 #define SPI3_NSS_PIN            PA15
 #define SPI3_SCK_PIN            PB3
@@ -155,6 +144,13 @@
 #define USE_I2C_DEVICE_1
 #define I2C1_SCL                PB6
 #define I2C1_SDA                PB7
+
+#define USE_OSD
+#define USE_MAX7456
+#define MAX7456_SPI_BUS         BUS_SPI3
+#define MAX7456_CS_PIN          PB12
+//#define MAX7456_SPI_CLK         (SPI_CLOCK_STANDARD) // 10MHz // XXX
+//#define MAX7456_RESTORE_CLK     (SPI_CLOCK_FAST) // XXX
 
 #define USE_ADC
 #define ADC1_DMA_STREAM         DMA2_Stream0
@@ -173,13 +169,6 @@
 #define USE_LED_STRIP
 // LED Strip can run off Pin 41 (PA8) of the ESC outputs.
 #define WS2811_PIN                      PA8
-#define WS2811_TIMER                    TIM1
-#define WS2811_DMA_HANDLER_IDENTIFER    DMA2_ST1_HANDLER
-#define WS2811_DMA_STREAM               DMA2_Stream1
-#define WS2811_DMA_IT                   DMA_IT_TCIF1
-#define WS2811_DMA_CHANNEL              DMA_CHANNEL_6
-#define WS2811_TIMER_CHANNEL            TIM_CHANNEL_1
-#define WS2811_TIMER_GPIO_AF            GPIO_AF1_TIM1
 
 #define USE_SPEKTRUM_BIND
 // USART2, PA3
@@ -191,7 +180,7 @@
 
 #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 
-#define DEFAULT_FEATURES        (FEATURE_MOTOR_STOP | FEATURE_BLACKBOX)
+#define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_MOTOR_STOP | FEATURE_BLACKBOX)
 #define DEFAULT_RX_TYPE         RX_TYPE_SERIAL
 #define SERIALRX_UART           SERIAL_PORT_USART2
 #define RX_CHANNELS_TAER
@@ -207,6 +196,3 @@
 #define TARGET_IO_PORTB         0xffff
 #define TARGET_IO_PORTC         0xffff
 #define TARGET_IO_PORTD         (BIT(2))
-
-#define USABLE_TIMER_CHANNEL_COUNT      13
-#define USED_TIMERS             ( TIM_N(1) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(8) | TIM_N(12) )

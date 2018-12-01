@@ -28,7 +28,6 @@
 #include "build/build_config.h"
 
 #include "common/axis.h"
-#include "common/color.h"
 #include "common/maths.h"
 #include "common/printf.h"
 #include "common/typeconversion.h"
@@ -56,7 +55,6 @@
 
 #include "io/ledstrip.h"
 #include "io/beeper.h"
-#include "io/gimbal.h"
 #include "io/serial.h"
 #include "io/gps.h"
 
@@ -75,8 +73,6 @@
 #include "telemetry/telemetry.h"
 
 
-extern uint16_t rssi; // FIXME dependency on mw.c
-
 PG_REGISTER_WITH_RESET_FN(ledStripConfig_t, ledStripConfig, PG_LED_STRIP_CONFIG, 0);
 
 static bool ledStripInitialised = false;
@@ -92,23 +88,6 @@ static void ledStripDisable(void);
 #if LED_MAX_STRIP_LENGTH > WS2811_LED_STRIP_LENGTH
 # error "Led strip length must match driver"
 #endif
-
-typedef enum {
-    COLOR_BLACK = 0,
-    COLOR_WHITE,
-    COLOR_RED,
-    COLOR_ORANGE,
-    COLOR_YELLOW,
-    COLOR_LIME_GREEN,
-    COLOR_GREEN,
-    COLOR_MINT_GREEN,
-    COLOR_CYAN,
-    COLOR_LIGHT_BLUE,
-    COLOR_BLUE,
-    COLOR_DARK_VIOLET,
-    COLOR_MAGENTA,
-    COLOR_DEEP_PINK,
-} colorId_e;
 
 const hsvColor_t hsv[] = {
     //                        H    S    V
@@ -483,12 +462,12 @@ static void applyLedFixedLayers(void)
 
             case LED_FUNCTION_BATTERY:
                 color = HSV(RED);
-                hOffset += scaleRange(calculateBatteryCapacityRemainingPercentage(), 0, 100, -30, 120);
+                hOffset += scaleRange(calculateBatteryPercentage(), 0, 100, -30, 120);
                 break;
 
             case LED_FUNCTION_RSSI:
                 color = HSV(RED);
-                hOffset += scaleRange(rssi * 100, 0, 1023, -30, 120);
+                hOffset += scaleRange(getRSSI() * 100, 0, 1023, -30, 120);
                 break;
 
             default:
@@ -596,9 +575,10 @@ static void applyLedBatteryLayer(bool updateNow, timeUs_t *timer)
                break;
        }
        flash = !flash;
+
+        *timer += LED_STRIP_HZ(timeOffset);
     }
 
-    *timer += LED_STRIP_HZ(timeOffset);
 
     if (!flash) {
        const hsvColor_t *bgc = getSC(LED_SCOLOR_BACKGROUND);
@@ -611,10 +591,10 @@ static void applyLedRssiLayer(bool updateNow, timeUs_t *timer)
     static bool flash = false;
 
     int state;
-    int timeOffset = 0;
+    int timeOffset = 1;
 
     if (updateNow) {
-       state = (rssi * 100) / 1023;
+       state = (getRSSI() * 100) / 1023;
 
        if (state > 50) {
            flash = false;
@@ -625,10 +605,10 @@ static void applyLedRssiLayer(bool updateNow, timeUs_t *timer)
            timeOffset = 8;
        }
        flash = !flash;
+
+       *timer += LED_STRIP_HZ(timeOffset);
     }
 
-
-    *timer += LED_STRIP_HZ(timeOffset);
 
     if (!flash) {
        const hsvColor_t *bgc = getSC(LED_SCOLOR_BACKGROUND);
@@ -894,7 +874,7 @@ static void applyLedAnimationLayer(bool updateNow, timeUs_t *timer)
 #endif
 
 typedef enum {
-    timBlink,
+    timBlink = 0,
     timLarson,
     timBattery,
     timRssi,
@@ -919,7 +899,7 @@ static timeUs_t timerVal[timTimerCount];
 //  may modify LED state.
 typedef void applyLayerFn_timed(bool updateNow, timeUs_t *timer);
 
-static applyLayerFn_timed* layerTable[] = {
+static applyLayerFn_timed* layerTable[timTimerCount] = {
     [timBlink] = &applyLedBlinkLayer,
     [timLarson] = &applyLarsonScannerLayer,
     [timBattery] = &applyLedBatteryLayer,

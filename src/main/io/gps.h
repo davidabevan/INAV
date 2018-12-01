@@ -91,6 +91,7 @@ typedef struct gpsConfig_s {
     gpsAutoConfig_e autoConfig;
     gpsAutoBaud_e autoBaud;
     gpsDynModel_e dynModel;
+    bool ubloxUseGalileo;
     uint8_t gpsMinSats;
 } gpsConfig_t;
 
@@ -112,6 +113,7 @@ typedef struct gpsLocation_s {
 
 typedef struct gpsSolutionData_s {
     struct {
+        bool hasNewData;
         bool gpsHeartbeat;  // Toggle each update
         bool validVelNE;
         bool validVelD;
@@ -153,8 +155,11 @@ struct magDev_s;
 bool gpsMagDetect(struct magDev_s *mag);
 void gpsPreInit(void);
 void gpsInit(void);
-void gpsThread(void);
+// Called periodically from GPS task. Returns true iff the GPS
+// information was updated.
+bool gpsUpdate(void);
 void updateGpsIndicator(timeUs_t currentTimeUs);
 bool isGPSHealthy(void);
+bool isGPSHeadingValid(void);
 struct serialPort_s;
 void gpsEnablePassthrough(struct serialPort_s *gpsPassthroughPort);

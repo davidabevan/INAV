@@ -17,7 +17,12 @@
 
 #pragma once
 
+#include "common/axis.h"
+#include "common/filter.h"
 #include "common/maths.h"
+#include "common/vector.h"
+
+#include "config/feature.h"
 
 #include "flight/failsafe.h"
 
@@ -27,6 +32,8 @@
 extern gpsLocation_t        GPS_home;
 extern uint16_t             GPS_distanceToHome;        // distance to home point in meters
 extern int16_t              GPS_directionToHome;       // direction to home point in degrees
+
+extern bool autoThrottleManuallyIncreased;
 
 /* Navigation system updates */
 void onNewGPSData(void);
@@ -59,11 +66,11 @@ enum {
     NAV_HEADING_CONTROL_MANUAL
 };
 
-enum {
-    NAV_RESET_ALTITUDE_NEVER = 0,
-    NAV_RESET_ALTITUDE_ON_FIRST_ARM,
-    NAV_RESET_ALTITUDE_ON_EACH_ARM,
-};
+typedef enum {
+    NAV_RESET_NEVER = 0,
+    NAV_RESET_ON_FIRST_ARM,
+    NAV_RESET_ON_EACH_ARM,
+} nav_reset_type_e;
 
 typedef enum {
     NAV_RTH_ALLOW_LANDING_NEVER = 0,
@@ -73,10 +80,11 @@ typedef enum {
 
 typedef struct positionEstimationConfig_s {
     uint8_t automatic_mag_declination;
-    uint8_t reset_altitude_type;
+    uint8_t reset_altitude_type; // from nav_reset_type_e
+    uint8_t reset_home_type; // nav_reset_type_e
     uint8_t gravity_calibration_tolerance;    // Tolerance of gravity calibration (cm/s/s)
     uint8_t use_gps_velned;
-    uint16_t gps_delay_ms;
+    uint8_t allow_dead_reckoning;
 
     uint16_t max_surface_altitude;
 
@@ -90,6 +98,9 @@ typedef struct positionEstimationConfig_s {
 
     float w_xy_gps_p;   // Weight (cutoff frequency) for GPS position measurements
     float w_xy_gps_v;   // Weight (cutoff frequency) for GPS velocity measurements
+
+    float w_xy_flow_p;
+    float w_xy_flow_v;
 
     float w_z_res_v;    // When velocity sources lost slowly decrease estimated velocity with this weight
     float w_xy_res_v;
@@ -115,6 +126,7 @@ typedef struct navConfig_s {
             uint8_t disarm_on_landing;          //
             uint8_t rth_allow_landing;          // Enable landing as last stage of RTH. Use constants in navRTHAllowLanding_e.
             uint8_t rth_climb_ignore_emerg;     // Option to ignore GPS loss on initial climb stage of RTH
+            uint8_t auto_overrides_motor_stop;  // Autonomous modes override motor_stop setting and user command to stop motor
         } flags;
 
         uint8_t  pos_failure_timeout;           // Time to wait before switching to emergency landing (0 - disable)
@@ -129,14 +141,24 @@ typedef struct navConfig_s {
         uint16_t land_slowdown_maxalt;          // Altitude to start lowering descent rate during RTH descend
         uint16_t emerg_descent_rate;            // emergency landing descent rate
         uint16_t rth_altitude;                  // altitude to maintain when RTH is active (depends on rth_alt_control_mode) (cm)
+        uint16_t rth_home_altitude;             // altitude to go to during RTH after the craft reached home (cm)
         uint16_t min_rth_distance;              // 0 Disables. Minimal distance for RTH in cm, otherwise it will just autoland
         uint16_t rth_abort_threshold;           // Initiate emergency landing if during RTH we get this much [cm] away from home
+        uint16_t max_terrain_follow_altitude;   // Max altitude to be used in SURFACE TRACKING mode
     } general;
 
     struct {
-        uint8_t  max_bank_angle;             // multicopter max banking angle (deg)
-        uint16_t hover_throttle;             // multicopter hover throttle
-        uint16_t auto_disarm_delay;          // multicopter safety delay for landing detector
+        uint8_t  max_bank_angle;                // multicopter max banking angle (deg)
+        uint16_t hover_throttle;                // multicopter hover throttle
+        uint16_t auto_disarm_delay;             // multicopter safety delay for landing detector
+        uint16_t braking_speed_threshold;       // above this speed braking routine might kick in
+        uint16_t braking_disengage_speed;       // below this speed braking will be disengaged
+        uint16_t braking_timeout;               // Timeout for braking mode
+        uint8_t  braking_boost_factor;          // Acceleration boost multiplier at max speed
+        uint16_t braking_boost_timeout;         // Timeout for boost mode
+        uint16_t braking_boost_speed_threshold; // Above this speed braking boost mode can engage
+        uint16_t braking_boost_disengage_speed; // Below this speed braking boost will disengage
+        uint8_t  braking_bank_angle;            // Max angle [deg] that MR is allowed duing braking boost phase
     } mc;
 
     struct {
@@ -144,6 +166,7 @@ typedef struct navConfig_s {
         uint8_t  max_climb_angle;            // Fixed wing max banking angle (deg)
         uint8_t  max_dive_angle;             // Fixed wing max banking angle (deg)
         uint16_t cruise_throttle;            // Cruise throttle
+        uint16_t cruise_speed;               // Speed at cruise throttle (cm/s), used for time/distance left before RTH
         uint16_t min_throttle;               // Minimum allowed throttle in auto mode
         uint16_t max_throttle;               // Maximum allowed throttle in auto mode
         uint8_t  pitch_to_throttle;          // Pitch angle (in deg) to throttle gain (in 1/1000's of throttle) (*10)
@@ -156,9 +179,13 @@ typedef struct navConfig_s {
         uint16_t launch_throttle;            // Launch throttle
         uint16_t launch_motor_timer;         // Time to wait before setting launch_throttle (ms)
         uint16_t launch_motor_spinup_time;   // Time to speed-up motors from idle to launch_throttle (ESC desync prevention)
+        uint16_t launch_min_time;	     // Minimum time in launch mode to prevent possible bump of the sticks from leaving launch mode early
         uint16_t launch_timeout;             // Launch timeout to disable launch mode and swith to normal flight (ms)
+        uint16_t launch_max_altitude;        // cm, altitude where to consider launch ended
         uint8_t  launch_climb_angle;         // Target climb angle for launch (deg)
         uint8_t  launch_max_angle;           // Max tilt angle (pitch/roll combined) to consider launch successful. Set to 180 to disable completely [deg]
+        uint8_t  cruise_yaw_rate;            // Max yaw rate (dps) when CRUISE MODE is enabled
+        bool     allow_manual_thr_increase;
     } fw;
 } navConfig_t;
 
@@ -191,9 +218,49 @@ typedef struct {
 } navWaypoint_t;
 
 typedef struct {
-    t_fp_vector pos;
+    fpVector3_t pos;
     int32_t     yaw;             // deg * 100
 } navWaypointPosition_t;
+
+typedef struct {
+    float kP;
+    float kI;
+    float kD;
+    float kT;   // Tracking gain (anti-windup)
+} pidControllerParam_t;
+
+typedef struct {
+    float kP;
+} pControllerParam_t;
+
+typedef struct {
+    bool reset;
+    pidControllerParam_t param;
+    pt1Filter_t dterm_filter_state;     // last derivative for low-pass filter
+    float integrator;                   // integrator value
+    float last_input;                   // last input for derivative
+
+    float integral;                     // used integral value in output
+    float proportional;                 // used proportional value in output
+    float derivative;                   // used derivative value in output
+    float output_constrained;           // controller output constrained
+} pidController_t;
+
+typedef struct {
+    pControllerParam_t param;
+    float output_constrained;
+} pController_t;
+
+typedef struct navigationPIDControllers_s {
+    /* Multicopter PIDs */
+    pController_t   pos[XYZ_AXIS_COUNT];
+    pidController_t vel[XYZ_AXIS_COUNT];
+    pidController_t surface;
+
+    /* Fixed-wing PIDs */
+    pidController_t fw_alt;
+    pidController_t fw_nav;
+} navigationPIDControllers_t;
 
 /* MultiWii-compatible params for telemetry */
 typedef enum {
@@ -213,11 +280,13 @@ typedef enum {
     MW_NAV_STATE_WP_ENROUTE,              // WP Enroute
     MW_NAV_STATE_PROCESS_NEXT,            // Process next
     MW_NAV_STATE_DO_JUMP,                 // Jump
-    MW_NAV_STATE_LAND_START,              // Start Land
+    MW_NAV_STATE_LAND_START,              // Start Land (unused)
     MW_NAV_STATE_LAND_IN_PROGRESS,        // Land in Progress
     MW_NAV_STATE_LANDED,                  // Landed
     MW_NAV_STATE_LAND_SETTLE,             // Settling before land
-    MW_NAV_STATE_LAND_START_DESCENT       // Start descent
+    MW_NAV_STATE_LAND_START_DESCENT,      // Start descent
+    MW_NAV_STATE_HOVER_ABOVE_HOME,        // Hover/Loitering above home
+    MW_NAV_STATE_EMERGENCY_LANDING,       // Emergency landing
 } navSystemStatus_State_e;
 
 typedef enum {
@@ -270,11 +339,23 @@ int8_t navigationGetHeadingControlState(void);
 bool navigationBlockArming(void);
 bool navigationPositionEstimateIsHealthy(void);
 bool navIsCalibrationComplete(void);
+bool navigationTerrainFollowingEnabled(void);
 
 /* Access to estimated position and velocity */
+typedef struct {
+    uint8_t altStatus;
+    uint8_t posStatus;
+    uint8_t velStatus;
+    uint8_t aglStatus;
+    fpVector3_t pos;
+    fpVector3_t vel;
+    float agl;
+} navPositionAndVelocity_t;
+
 float getEstimatedActualVelocity(int axis);
 float getEstimatedActualPosition(int axis);
 int32_t getTotalTravelDistance(void);
+void getEstimatedPositionAndVelocity(navPositionAndVelocity_t * pos);
 
 /* Waypoint list access functions */
 int getWaypointCount(void);
@@ -284,6 +365,8 @@ void setWaypoint(uint8_t wpNumber, const navWaypoint_t * wpData);
 void resetWaypointList(void);
 bool loadNonVolatileWaypointList(void);
 bool saveNonVolatileWaypointList(void);
+
+float RTHAltitude();
 
 /* Geodetic functions */
 typedef enum {
@@ -297,8 +380,8 @@ typedef enum {
 } geoOriginResetMode_e;
 
 void geoSetOrigin(gpsOrigin_s * origin, const gpsLocation_t * llh, geoOriginResetMode_e resetMode);
-void geoConvertGeodeticToLocal(gpsOrigin_s * origin, const gpsLocation_t * llh, t_fp_vector * pos, geoAltitudeConversionMode_e altConv);
-void geoConvertLocalToGeodetic(const gpsOrigin_s * origin, const t_fp_vector * pos, gpsLocation_t * llh);
+void geoConvertGeodeticToLocal(gpsOrigin_s * origin, const gpsLocation_t * llh, fpVector3_t * pos, geoAltitudeConversionMode_e altConv);
+void geoConvertLocalToGeodetic(const gpsOrigin_s * origin, const fpVector3_t * pos, gpsLocation_t * llh);
 float geoCalculateMagDeclination(const gpsLocation_t * llh); // degrees units
 
 /* Failsafe-forced RTH mode */
@@ -308,11 +391,31 @@ rthState_e getStateOfForcedRTH(void);
 
 /* Getter functions which return data about the state of the navigation system */
 bool navigationIsControllingThrottle(void);
+bool isFixedWingAutoThrottleManuallyIncreased(void);
 bool navigationIsFlyingAutonomousMode(void);
+bool navigationIsExecutingAnEmergencyLanding(void);
 /* Returns true iff navConfig()->general.flags.rth_allow_landing is NAV_RTH_ALLOW_LANDING_ALWAYS
  * or if it's NAV_RTH_ALLOW_LANDING_FAILSAFE and failsafe mode is active.
  */
 bool navigationRTHAllowsLanding(void);
+
+bool isNavLaunchEnabled(void);
+bool isFixedWingLaunchDetected(void);
+
+float calculateAverageSpeed();
+
+const navigationPIDControllers_t* getNavigationPIDControllers(void);
+
+int32_t navigationGetHeadingError(void);
+int32_t getCruiseHeadingAdjustment(void);
+bool isAdjustingPosition(void);
+bool isAdjustingHeading(void);
+
+/* Returns the heading recorded when home position was acquired.
+ * Note that the navigation system uses deg*100 as unit and angles
+ * are in the [0, 360 * 100) interval.
+ */
+int32_t navigationGetHomeHeading(void);
 
 /* Compatibility data */
 extern navSystemStatus_t    NAV_Status;
@@ -320,9 +423,8 @@ extern navSystemStatus_t    NAV_Status;
 extern int16_t navCurrentState;
 extern int16_t navActualVelocity[3];
 extern int16_t navDesiredVelocity[3];
-extern int16_t navTargetPosition[3];
+extern int32_t navTargetPosition[3];
 extern int32_t navLatestActualPosition[3];
-extern int16_t navTargetSurface;
 extern int16_t navActualSurface;
 extern uint16_t navFlags;
 extern uint16_t navEPH;
@@ -337,5 +439,6 @@ extern int16_t navAccNEU[3];
 #define getEstimatedActualVelocity(axis) (0)
 #define navigationIsControllingThrottle() (0)
 #define navigationRTHAllowsLanding() (0)
+#define navigationGetHomeHeading(0)
 
 #endif

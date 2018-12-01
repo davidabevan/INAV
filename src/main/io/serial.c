@@ -101,7 +101,7 @@ const uint32_t baudRates[] = { 0, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 1
 
 #define BAUD_RATE_COUNT (sizeof(baudRates) / sizeof(baudRates[0]))
 
-PG_REGISTER_WITH_RESET_FN(serialConfig_t, serialConfig, PG_SERIAL_CONFIG, 0);
+PG_REGISTER_WITH_RESET_FN(serialConfig_t, serialConfig, PG_SERIAL_CONFIG, 1);
 
 void pgResetFn_serialConfig(serialConfig_t *serialConfig)
 {
@@ -110,21 +110,12 @@ void pgResetFn_serialConfig(serialConfig_t *serialConfig)
     for (int i = 0; i < SERIAL_PORT_COUNT; i++) {
         serialConfig->portConfigs[i].identifier = serialPortIdentifiers[i];
         serialConfig->portConfigs[i].msp_baudrateIndex = BAUD_115200;
-        serialConfig->portConfigs[i].gps_baudrateIndex = BAUD_38400;
+        serialConfig->portConfigs[i].gps_baudrateIndex = BAUD_115200;
         serialConfig->portConfigs[i].telemetry_baudrateIndex = BAUD_AUTO;
         serialConfig->portConfigs[i].peripheral_baudrateIndex = BAUD_115200;
     }
 
     serialConfig->portConfigs[0].functionMask = FUNCTION_MSP;
-
-#ifdef USE_VCP
-    if (serialConfig->portConfigs[0].identifier == SERIAL_PORT_USB_VCP) {
-        serialPortConfig_t * uart1Config = serialFindPortConfiguration(SERIAL_PORT_USART1);
-        if (uart1Config) {
-            uart1Config->functionMask = FUNCTION_MSP;
-        }
-    }
-#endif
 
 #ifdef SERIALRX_UART
     serialPortConfig_t *serialRxUartConfig = serialFindPortConfiguration(SERIALRX_UART);
@@ -137,6 +128,22 @@ void pgResetFn_serialConfig(serialConfig_t *serialConfig)
     serialPortConfig_t *gpsUartConfig = serialFindPortConfiguration(GPS_UART);
     if (gpsUartConfig) {
         gpsUartConfig->functionMask = FUNCTION_GPS;
+    }
+#endif
+
+#ifdef SMARTAUDIO_UART
+    serialPortConfig_t *gpsUartConfig = serialFindPortConfiguration(SMARTAUDIO_UART);
+    if (SMARTAUDIO_UART) {
+        gpsUartConfig->functionMask = FUNCTION_VTX_SMARTAUDIO;
+    }
+#endif
+
+#ifdef USE_VCP
+    if (serialConfig->portConfigs[0].identifier == SERIAL_PORT_USB_VCP) {
+        serialPortConfig_t * uart1Config = serialFindPortConfiguration(SERIAL_PORT_USART1);
+        if (uart1Config && uart1Config->functionMask == 0) {
+            uart1Config->functionMask = FUNCTION_MSP;
+        }
     }
 #endif
 
@@ -225,21 +232,21 @@ portSharing_e determinePortSharing(const serialPortConfig_t *portConfig, serialP
     return portConfig->functionMask == function ? PORTSHARING_NOT_SHARED : PORTSHARING_SHARED;
 }
 
-bool isSerialPortShared(const serialPortConfig_t *portConfig, uint16_t functionMask, serialPortFunction_e sharedWithFunction)
+bool isSerialPortShared(const serialPortConfig_t *portConfig, uint32_t functionMask, serialPortFunction_e sharedWithFunction)
 {
     return (portConfig) && (portConfig->functionMask & sharedWithFunction) && (portConfig->functionMask & functionMask);
 }
 
 static findSharedSerialPortState_t findSharedSerialPortState;
 
-serialPort_t *findSharedSerialPort(uint16_t functionMask, serialPortFunction_e sharedWithFunction)
+serialPort_t *findSharedSerialPort(uint32_t functionMask, serialPortFunction_e sharedWithFunction)
 {
     memset(&findSharedSerialPortState, 0, sizeof(findSharedSerialPortState));
 
     return findNextSharedSerialPort(functionMask, sharedWithFunction);
 }
 
-serialPort_t *findNextSharedSerialPort(uint16_t functionMask, serialPortFunction_e sharedWithFunction)
+serialPort_t *findNextSharedSerialPort(uint32_t functionMask, serialPortFunction_e sharedWithFunction)
 {
     while (findSharedSerialPortState.lastIndex < SERIAL_PORT_COUNT) {
         const serialPortConfig_t *candidate = &serialConfig()->portConfigs[findSharedSerialPortState.lastIndex++];
@@ -256,7 +263,7 @@ serialPort_t *findNextSharedSerialPort(uint16_t functionMask, serialPortFunction
 }
 
 #define ALL_TELEMETRY_FUNCTIONS_MASK (FUNCTION_TELEMETRY_FRSKY | FUNCTION_TELEMETRY_HOTT | FUNCTION_TELEMETRY_SMARTPORT | FUNCTION_TELEMETRY_LTM | FUNCTION_TELEMETRY_MAVLINK | FUNCTION_TELEMETRY_IBUS)
-#define ALL_FUNCTIONS_SHARABLE_WITH_MSP (FUNCTION_BLACKBOX | ALL_TELEMETRY_FUNCTIONS_MASK)
+#define ALL_FUNCTIONS_SHARABLE_WITH_MSP (FUNCTION_BLACKBOX | ALL_TELEMETRY_FUNCTIONS_MASK | FUNCTION_DEBUG_TRACE)
 
 bool isSerialConfigValid(const serialConfig_t *serialConfigToCheck)
 {
@@ -264,7 +271,7 @@ bool isSerialConfigValid(const serialConfig_t *serialConfigToCheck)
     /*
      * rules:
      * - 1 MSP port minimum, max MSP ports is defined and must be adhered to.
-     * - MSP is allowed to be shared with EITHER any telemetry OR blackbox.
+     * - MSP is allowed to be shared with EITHER any telemetry OR blackbox OR debug trace.
      * - serial RX and FrSky / LTM telemetry can be shared
      * - No other sharing combinations are valid.
      */
@@ -496,29 +503,6 @@ void waitForSerialPortToFinishTransmitting(serialPort_t *serialPort)
     while (!isSerialTransmitBufferEmpty(serialPort)) {
         delay(10);
     };
-}
-
-void serialEvaluateNonMspData(serialPort_t *serialPort, uint8_t receivedChar)
-{
-#ifndef USE_CLI
-    UNUSED(serialPort);
-#else
-    if (receivedChar == '#') {
-        cliEnter(serialPort);
-    }
-#endif
-    if (receivedChar == serialConfig()->reboot_character) {
-        // A 100ms guard delay to make sure reboot_character is followed by silence
-        // If anything is received during the guard period - reboot_character is ignored
-        for (int i = 0; i < 10; i++) {
-            delay(10);
-            if (serialRxBytesWaiting(serialPort)) {
-                return;
-            }
-        }
-
-        systemResetToBootloader();
-    }
 }
 
 #if defined(USE_GPS) || defined(USE_SERIAL_PASSTHROUGH)

@@ -55,17 +55,25 @@ typedef float (*filterApplyFnPtr)(void *filter, float input);
 
 float nullFilterApply(void *filter, float input);
 
+void pt1FilterInit(pt1Filter_t *filter, uint8_t f_cut, float dT);
+void pt1FilterInitRC(pt1Filter_t *filter, float tau, float dT);
+void pt1FilterSetTimeConstant(pt1Filter_t *filter, float tau);
+float pt1FilterGetLastOutput(pt1Filter_t *filter);
 float pt1FilterApply(pt1Filter_t *filter, float input);
+float pt1FilterApply3(pt1Filter_t *filter, float input, float dT);
 float pt1FilterApply4(pt1Filter_t *filter, float input, uint16_t f_cut, float dt);
 void pt1FilterReset(pt1Filter_t *filter, float input);
 
 void rateLimitFilterInit(rateLimitFilter_t *filter);
 float rateLimitFilterApply4(rateLimitFilter_t *filter, float input, float rate_limit, float dT);
 
+void biquadRCFIR2FilterInit(biquadFilter_t *filter, uint16_t f_cut, uint32_t samplingIntervalUs);
+
 void biquadFilterInitNotch(biquadFilter_t *filter, uint32_t samplingIntervalUs, uint16_t filterFreq, uint16_t cutoffHz);
 void biquadFilterInitLPF(biquadFilter_t *filter, uint16_t filterFreq, uint32_t samplingIntervalUs);
 void biquadFilterInit(biquadFilter_t *filter, uint16_t filterFreq, uint32_t samplingIntervalUs, float Q, biquadFilterType_e filterType);
 float biquadFilterApply(biquadFilter_t *filter, float sample);
+float biquadFilterReset(biquadFilter_t *filter, float value);
 float filterGetNotchQ(uint16_t centerFreq, uint16_t cutoff);
 
 void firFilterInit(firFilter_t *filter, float *buf, uint8_t bufLength, const float *coeffs);

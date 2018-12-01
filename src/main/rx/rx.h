@@ -25,13 +25,15 @@
 
 #define STICK_CHANNEL_COUNT 4
 
-#define PWM_RANGE_ZERO 0 // FIXME should all usages of this be changed to use PWM_RANGE_MIN?
 #define PWM_RANGE_MIN 1000
 #define PWM_RANGE_MAX 2000
 #define PWM_RANGE_MIDDLE (PWM_RANGE_MIN + ((PWM_RANGE_MAX - PWM_RANGE_MIN) / 2))
 
 #define PWM_PULSE_MIN   750       // minimum PWM pulse width which is considered valid
 #define PWM_PULSE_MAX   2250      // maximum PWM pulse width which is considered valid
+
+#define MIDRC_MIN 1200
+#define MIDRC_MAX 1700
 
 #define RXFAIL_STEP_TO_CHANNEL_VALUE(step) (PWM_PULSE_MIN + 25 * step)
 #define CHANNEL_VALUE_TO_RXFAIL_STEP(channelValue) ((constrain(channelValue, PWM_PULSE_MIN, PWM_PULSE_MAX) - PWM_PULSE_MIN) / 25)
@@ -45,10 +47,13 @@
 #define DELAY_10_HZ (1000000 / 10)
 #define DELAY_5_HZ (1000000 / 5)
 
+#define RSSI_MAX_VALUE 1023
+
 typedef enum {
     RX_FRAME_PENDING = 0,               // No new data available from receiver
     RX_FRAME_COMPLETE = (1 << 0),       // There is new data available
-    RX_FRAME_FAILSAFE = (1 << 1)        // Receiver detected loss of RC link. Only valid when RX_FRAME_COMPLETE is set as well
+    RX_FRAME_FAILSAFE = (1 << 1),       // Receiver detected loss of RC link. Only valid when RX_FRAME_COMPLETE is set as well
+    RX_FRAME_PROCESSING_REQUIRED = (1 << 2),
 } rxFrameState_e;
 
 typedef enum {
@@ -71,7 +76,8 @@ typedef enum {
     SERIALRX_XBUS_MODE_B_RJ01 = 6,
     SERIALRX_IBUS = 7,
     SERIALRX_JETIEXBUS = 8,
-    SERIALRX_CRSF = 9
+    SERIALRX_CRSF = 9,
+    SERIALRX_FPORT = 10,
 } rxSerialReceiverType_e;
 
 #define MAX_SUPPORTED_RC_PPM_CHANNEL_COUNT          16
@@ -89,13 +95,14 @@ typedef enum {
 
 extern const char rcChannelLetters[];
 
+extern int16_t rcRaw[MAX_SUPPORTED_RC_CHANNEL_COUNT];        // interval [1000;2000]
 extern int16_t rcData[MAX_SUPPORTED_RC_CHANNEL_COUNT];       // interval [1000;2000]
 
-#define MAX_MAPPABLE_RX_INPUTS 8
+#define MAX_MAPPABLE_RX_INPUTS 4
 
-#define RSSI_SCALE_MIN 1
-#define RSSI_SCALE_MAX 255
-#define RSSI_SCALE_DEFAULT 100
+#define RSSI_VISIBLE_VALUE_MIN 0
+#define RSSI_VISIBLE_VALUE_MAX 100
+#define RSSI_VISIBLE_FACTOR (RSSI_MAX_VALUE/(float)RSSI_VISIBLE_VALUE_MAX)
 
 typedef struct rxChannelRangeConfig_s {
     uint16_t min;
@@ -107,7 +114,7 @@ typedef struct rxConfig_s {
     uint8_t receiverType;                   // RC receiver type (rxReceiverType_e enum)
     uint8_t rcmap[MAX_MAPPABLE_RX_INPUTS];  // mapping of radio channels to internal RPYTA+ order
     uint8_t serialrx_provider;              // Type of UART-based receiver (rxSerialReceiverType_e enum). Only used if receiverType is RX_TYPE_SERIAL
-    uint8_t sbus_inversion;                 // default sbus (Futaba, FrSKY) is inverted. Support for uninverted OpenLRS (and modified FrSKY) receivers.
+    uint8_t serialrx_inverted;              // Flip the default inversion of the protocol - e.g. sbus (Futaba, FrSKY) is inverted if this is false, uninverted if it's true. Support for uninverted OpenLRS (and modified FrSKY) receivers.
     uint8_t halfDuplex;                     // allow rx to operate in half duplex mode on F4, ignored for F1 and F3.
     uint8_t rx_spi_protocol;                // type of SPI receiver protocol (rx_spi_protocol_e enum). Only used if receiverType is RX_TYPE_SPI
     uint32_t rx_spi_id;
@@ -115,9 +122,9 @@ typedef struct rxConfig_s {
     uint8_t spektrum_sat_bind;              // number of bind pulses for Spektrum satellite receivers
     uint8_t spektrum_sat_bind_autoreset;    // whenever we will reset (exit) binding mode after hard reboot
     uint8_t rssi_channel;
-    uint8_t rssi_scale;
-    uint8_t rssiInvert;
-    uint16_t midrc;                         // Some radios have not a neutral point centered on 1500. can be changed here
+    uint8_t rssiMin;                        // minimum RSSI sent by the RX - [RSSI_VISIBLE_VALUE_MIN, RSSI_VISIBLE_VALUE_MAX]
+    uint8_t rssiMax;                        // maximum RSSI sent by the RX - [RSSI_VISIBLE_VALUE_MIN, RSSI_VISIBLE_VALUE_MAX]
+    uint16_t sbusSyncInterval;
     uint16_t mincheck;                      // minimum rc end
     uint16_t maxcheck;                      // maximum rc end
     uint16_t rx_min_usec;
@@ -129,9 +136,10 @@ PG_DECLARE(rxConfig_t, rxConfig);
 
 #define REMAPPABLE_CHANNEL_COUNT (sizeof(((rxConfig_t *)0)->rcmap) / sizeof(((rxConfig_t *)0)->rcmap[0]))
 
-struct rxRuntimeConfig_s;
-typedef uint16_t (*rcReadRawDataFnPtr)(const struct rxRuntimeConfig_s *rxRuntimeConfig, uint8_t chan); // used by receiver driver to return channel data
-typedef uint8_t (*rcFrameStatusFnPtr)(void);
+typedef struct rxRuntimeConfig_s rxRuntimeConfig_t;
+typedef uint16_t (*rcReadRawDataFnPtr)(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan); // used by receiver driver to return channel data
+typedef uint8_t (*rcFrameStatusFnPtr)(rxRuntimeConfig_t *rxRuntimeConfig);
+typedef bool (*rcProcessFrameFnPtr)(const rxRuntimeConfig_t *rxRuntimeConfig);
 
 typedef struct rxRuntimeConfig_s {
     uint8_t channelCount;                  // number of rc channels as reported by current input driver
@@ -140,20 +148,39 @@ typedef struct rxRuntimeConfig_s {
     bool requireFiltering;
     rcReadRawDataFnPtr rcReadRawFn;
     rcFrameStatusFnPtr rcFrameStatusFn;
+    rcProcessFrameFnPtr rcProcessFrameFn;
+    uint16_t *channelData;
+    void *frameData;
 } rxRuntimeConfig_t;
 
+typedef enum {
+    RSSI_SOURCE_NONE = 0,
+    RSSI_SOURCE_ADC,
+    RSSI_SOURCE_RX_CHANNEL,
+    RSSI_SOURCE_RX_PROTOCOL,
+    RSSI_SOURCE_MSP,
+} rssiSource_e;
+
 extern rxRuntimeConfig_t rxRuntimeConfig; //!!TODO remove this extern, only needed once for channelCount
-extern uint16_t rssi;
 
 void rxInit(void);
+void rxUpdateRSSISource(void);
 bool rxUpdateCheck(timeUs_t currentTimeUs, timeDelta_t currentDeltaTime);
 bool rxIsReceivingSignal(void);
 bool rxAreFlightChannelsValid(void);
-void calculateRxChannelsAndUpdateFailsafe(timeUs_t currentTimeUs);
+bool calculateRxChannelsAndUpdateFailsafe(timeUs_t currentTimeUs);
 
 void parseRcChannels(const char *input);
 
+// filtered = true indicates that newRssi comes from a source which already does
+// filtering and no further filtering should be performed in the value.
+void setRSSI(uint16_t newRssi, rssiSource_e source, bool filtered);
+void setRSSIFromMSP(uint8_t newMspRssi);
 void updateRSSI(timeUs_t currentTimeUs);
+// Returns RSSI in [0, RSSI_MAX_VALUE] range.
+uint16_t getRSSI(void);
+rssiSource_e getRSSISource(void);
+
 void resetAllRxChannelRangeConfigurations(void);
 
 void suspendRxSignal(void);

@@ -25,6 +25,7 @@
 
 #if defined(USE_RX_PWM) || defined(USE_RX_PPM)
 
+#include "build/debug.h"
 #include "common/utils.h"
 
 #include "config/feature.h"
@@ -54,8 +55,10 @@ static uint16_t readRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan
     return channelData[channel];
 }
 
-static uint8_t pwmFrameStatus(void)
+static uint8_t pwmFrameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 {
+    UNUSED(rxRuntimeConfig);
+
     timeUs_t currentTimeUs = micros();
 
     // PWM doesn't indicate individual updates, if low level code indicates that we have valid signal
@@ -76,8 +79,10 @@ static uint8_t pwmFrameStatus(void)
     return RX_FRAME_PENDING;
 }
 
-static uint8_t ppmFrameStatus(void)
+static uint8_t ppmFrameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 {
+    UNUSED(rxRuntimeConfig);
+
     // PPM receiver counts received frames so we actually know if new data is available
     if (isPPMDataBeingReceived()) {
         for (int channel = 0; channel < MAX_SUPPORTED_RC_PPM_CHANNEL_COUNT; channel++) {

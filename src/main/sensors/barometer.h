@@ -28,7 +28,8 @@ typedef enum {
     BARO_MS5611 = 3,
     BARO_BMP280 = 4,
     BARO_MS5607 = 5,
-    BARO_FAKE = 6,
+    BARO_LPS25H = 6,
+    BARO_FAKE = 7,
     BARO_MAX = BARO_FAKE
 } baroSensor_e;
 
@@ -54,4 +55,5 @@ void baroStartCalibration(void);
 uint32_t baroUpdate(void);
 int32_t baroCalculateAltitude(void);
 int32_t baroGetLatestAltitude(void);
+int16_t baroGetTemperature(void);
 bool baroIsHealthy(void);

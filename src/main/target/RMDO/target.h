@@ -46,8 +46,11 @@
 #define MAG_I2C_BUS             BUS_I2C1
 #define USE_MAG_AK8975
 #define USE_MAG_HMC5883
-#define USE_MAG_MAG3110
 #define USE_MAG_QMC5883
+#define USE_MAG_IST8310
+#define USE_MAG_IST8308
+#define USE_MAG_MAG3110
+#define USE_MAG_LIS3MDL
 
 #define USE_FLASHFS
 #define USE_FLASH_M25P16
@@ -86,7 +89,7 @@
 
 #define M25P16_CS_GPIO          GPIOB
 #define M25P16_CS_PIN           PB12
-#define M25P16_SPI_INSTANCE     SPI2
+#define M25P16_SPI_BUS          BUS_SPI2
 
 #define BOARD_HAS_VOLTAGE_DIVIDER
 #define USE_ADC
@@ -102,8 +105,6 @@
 
 #define USE_LED_STRIP_ON_DMA1_CHANNEL2
 #define WS2811_PIN                      PA8
-#define WS2811_DMA_STREAM               DMA1_Channel2
-#define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH2_HANDLER
 
 #undef NAV_MAX_WAYPOINTS
 #define NAV_MAX_WAYPOINTS       30
@@ -127,6 +128,3 @@
 #define TARGET_IO_PORTB         0xffff
 #define TARGET_IO_PORTC         (BIT(13)|BIT(14)|BIT(15))
 #define TARGET_IO_PORTF         (BIT(0)|BIT(1)|BIT(4))
-
-#define USABLE_TIMER_CHANNEL_COUNT 17
-#define USED_TIMERS             (TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(15) | TIM_N(16) |TIM_N(17))

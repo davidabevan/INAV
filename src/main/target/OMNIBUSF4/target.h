@@ -26,6 +26,8 @@
 #define TARGET_BOARD_IDENTIFIER "OB43"
 #elif defined(DYSF4PRO)
 #define TARGET_BOARD_IDENTIFIER "DYS4"
+#elif defined(DYSF4PROV2)
+#define TARGET_BOARD_IDENTIFIER "DY42"
 #else
 #define TARGET_BOARD_IDENTIFIER "OBF4"
 #endif
@@ -41,19 +43,24 @@
 #define BEEPER                  PB4
 #define BEEPER_INVERTED
 
-#if defined(OMNIBUSF4V3)
-  #define INVERTER_PIN_UART6      PC8
+#if defined(DYSF4PROV2)
+#define USE_I2C
+#define USE_I2C_DEVICE_1
+#define I2C1_SCL PB8
+#define I2C1_SDA PB9
+#define I2C_EXT_BUS BUS_I2C1
 #else
-  #define INVERTER_PIN_UART1      PC0 // PC0 has never been used as inverter control on genuine OMNIBUS F4 variants, but leave it as is since some clones actually implement it.
-#endif
-
 #define USE_I2C
 #define USE_I2C_DEVICE_2
 #define I2C_DEVICE_2_SHARES_UART3
+#define I2C_EXT_BUS BUS_I2C2
+#endif
+
+#define UG2864_I2C_BUS I2C_EXT_BUS
 
 // MPU6000 interrupts
 #define USE_EXTI
-#define MPU_INT_EXTI            PC4
+#define GYRO_INT_EXTI            PC4
 #define USE_MPU_DATA_READY_SIGNAL
 
 #define USE_GYRO
@@ -89,11 +96,14 @@
 #endif
 
 #define USE_MAG
-#define MAG_I2C_BUS             BUS_I2C2
-#define USE_MAG_HMC5883
+#define MAG_I2C_BUS             I2C_EXT_BUS
 #define MAG_HMC5883_ALIGN       CW90_DEG
-#define USE_MAG_MAG3110
+#define USE_MAG_HMC5883
 #define USE_MAG_QMC5883
+#define USE_MAG_IST8310
+#define USE_MAG_IST8308
+#define USE_MAG_MAG3110
+#define USE_MAG_LIS3MDL
 
 #define USE_BARO
 
@@ -101,29 +111,42 @@
   #define USE_BARO_BMP280
   #define BMP280_SPI_BUS        BUS_SPI3
   #define BMP280_CS_PIN         PB3 // v1
+
+  // Support external barometers
+  #define BARO_I2C_BUS          I2C_EXT_BUS
+  #define USE_BARO_BMP085
+  #define USE_BARO_MS5611
 #else
-  #define BARO_I2C_BUS          BUS_I2C2
+  #define BARO_I2C_BUS          I2C_EXT_BUS
   #define USE_BARO_BMP085
   #define USE_BARO_BMP280
   #define USE_BARO_MS5611
 #endif
 
 #define USE_PITOT_MS4525
-#define PITOT_I2C_BUS           BUS_I2C2
+#define PITOT_I2C_BUS           I2C_EXT_BUS
 
 #define USE_RANGEFINDER
-#define RANGEFINDER_I2C_BUS     BUS_I2C2
+#define RANGEFINDER_I2C_BUS     I2C_EXT_BUS
 #define USE_RANGEFINDER_HCSR04_I2C
+#define USE_RANGEFINDER_VL53L0X
 
-#define USB_IO
+#define USE_OPTICAL_FLOW
+#define USE_OPFLOW_CXOF
+
 #define USE_VCP
 #define VBUS_SENSING_PIN        PC5
 #define VBUS_SENSING_ENABLED
+
+#define USE_UART_INVERTER
 
 #define USE_UART1
 #define UART1_RX_PIN            PA10
 #define UART1_TX_PIN            PA9
 #define UART1_AHB1_PERIPHERALS  RCC_AHB1Periph_DMA2
+#if !defined(OMNIBUSF4V3)
+#define INVERTER_PIN_UART1_RX PC0 // PC0 has never been used as inverter control on genuine OMNIBUS F4 variants, but leave it as is since some clones actually implement it.
+#endif
 
 #define USE_UART3
 #define UART3_RX_PIN            PB11
@@ -132,9 +155,17 @@
 #define USE_UART6
 #define UART6_RX_PIN            PC7
 #define UART6_TX_PIN            PC6
+#if defined(OMNIBUSF4V3)
+  #define INVERTER_PIN_UART6_RX PC8
+  #define INVERTER_PIN_UART6_TX PC9
+#endif
 
 #if defined(OMNIBUSF4V3)
-#define SERIAL_PORT_COUNT       4 //VCP, USART1, USART3, USART6
+#define USE_SOFTSERIAL1
+#define SOFTSERIAL_1_RX_PIN     PC6 //shared with UART6_TX
+#define SOFTSERIAL_1_TX_PIN     PC6 //shared with UART6_TX
+
+#define SERIAL_PORT_COUNT       5 //VCP, USART1, USART3, USART6, SOFTSERIAL1
 #else
 #define USE_SOFTSERIAL1
 #define SOFTSERIAL_1_RX_PIN     PC8
@@ -149,6 +180,7 @@
 
 #if defined(OMNIBUSF4PRO) || defined(OMNIBUSF4V3)
   #define USE_SPI_DEVICE_2
+  #define SPI2_CLOCK_LEADING_EDGE
   #define SPI2_NSS_PIN          PB12
   #define SPI2_SCK_PIN          PB13
   #define SPI2_MISO_PIN         PB14
@@ -173,21 +205,17 @@
 #if defined(OMNIBUSF4PRO) || defined(OMNIBUSF4V3)
   #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
   #define USE_SDCARD
-  #define USE_SDCARD_SPI2
+  #define USE_SDCARD_SPI
 
+  #define SDCARD_SPI_BUS        BUS_SPI2
+  #define SDCARD_CS_PIN         SPI2_NSS_PIN
+
+  #define SDCARD_DETECT_PIN     PB7
   #define SDCARD_DETECT_INVERTED
-  #define SDCARD_DETECT_PIN               PB7
-  #define SDCARD_SPI_INSTANCE             SPI2
-  #define SDCARD_SPI_CS_PIN               SPI2_NSS_PIN
-
-  #define SDCARD_DMA_CHANNEL_TX               DMA1_Stream4
-  #define SDCARD_DMA_CHANNEL_TX_COMPLETE_FLAG DMA_FLAG_TCIF4
-  #define SDCARD_DMA_CLK                      RCC_AHB1Periph_DMA1
-  #define SDCARD_DMA_CHANNEL                  DMA_Channel_0
 #else
   #define ENABLE_BLACKBOX_LOGGING_ON_SPIFLASH_BY_DEFAULT
   #define M25P16_CS_PIN           SPI3_NSS_PIN
-  #define M25P16_SPI_INSTANCE     SPI3
+  #define M25P16_SPI_BUS          BUS_SPI3
   #define USE_FLASHFS
   #define USE_FLASH_M25P16
 #endif
@@ -210,20 +238,14 @@
 
 #define USE_LED_STRIP
 #if (defined(OMNIBUSF4PRO) || defined(OMNIBUSF4V3)) && !defined(OMNIBUSF4PRO_LEDSTRIPM5)
-#   define WS2811_PIN                      PB6
-#   define WS2811_DMA_HANDLER_IDENTIFER    DMA1_ST0_HANDLER
-#   define WS2811_DMA_STREAM               DMA1_Stream0
-#   define WS2811_DMA_CHANNEL              DMA_Channel_2
+#   define WS2811_PIN                   PB6
 #else
-#   define WS2811_PIN                      PA1
-#   define WS2811_DMA_HANDLER_IDENTIFER    DMA1_ST4_HANDLER
-#   define WS2811_DMA_STREAM               DMA1_Stream4
-#   define WS2811_DMA_CHANNEL              DMA_Channel_6
+#   define WS2811_PIN                   PA1
 #endif
 
 #define DEFAULT_RX_TYPE         RX_TYPE_PPM
 #define DISABLE_RX_PWM_FEATURE
-#define DEFAULT_FEATURES        (FEATURE_BLACKBOX | FEATURE_VBAT | FEATURE_OSD)
+#define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_BLACKBOX | FEATURE_VBAT | FEATURE_OSD)
 
 #define USE_SPEKTRUM_BIND
 #define BIND_PIN                PB11 // USART3 RX
@@ -239,18 +261,8 @@
 #define TARGET_IO_PORTC         0xffff
 #define TARGET_IO_PORTD         0xffff
 
-#if defined(OMNIBUSF4PRO) || defined(OMNIBUSF4V3)
-#define USABLE_TIMER_CHANNEL_COUNT 13
-#else
-#define USABLE_TIMER_CHANNEL_COUNT 12
-#endif
-
-#if defined(OMNIBUSF4PRO) || defined(OMNIBUSF4V3)
-#define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(5) | TIM_N(4) | TIM_N(8) | TIM_N(9) | TIM_N(10) )
-#else
-#define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(5) | TIM_N(12) | TIM_N(8) | TIM_N(9) )
-#endif
-
 #ifdef OMNIBUSF4PRO
 #define CURRENT_METER_SCALE   265
 #endif
+
+#define PCA9685_I2C_BUS         I2C_EXT_BUS

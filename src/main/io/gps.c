@@ -41,6 +41,10 @@
 #include "drivers/system.h"
 #include "drivers/time.h"
 
+#if defined(USE_FAKE_GPS)
+#include "fc/runtime_config.h"
+#endif
+
 #include "sensors/sensors.h"
 #include "sensors/compass.h"
 
@@ -55,25 +59,11 @@
 #include "fc/config.h"
 #include "fc/runtime_config.h"
 
-// GPS timeout for wrong baud rate/disconnection/etc in milliseconds (default 2000 ms)
-#define GPS_TIMEOUT             (2000)
-#define GPS_BAUD_CHANGE_DELAY   (200)
-#define GPS_INIT_DELAY          (500)
-#define GPS_BUS_INIT_DELAY      (500)
-#define GPS_BOOT_DELAY          (2000)
-
-typedef enum {
-    GPS_TYPE_NA,        // Not available
-    GPS_TYPE_SERIAL,    // Serial connection (UART)
-    GPS_TYPE_BUS        // Bus connection (I2C/SPI)
-} gpsProviderType_e;
-
 typedef struct {
-    gpsProviderType_e   type;
-    portMode_t          portMode;      // Port mode RX/TX (only for serial based)
-    bool                hasCompass;    // Has a compass (NAZA)
-    bool (*detect)(void);
-    bool (*read)(void);
+    portMode_t          portMode;           // Port mode RX/TX (only for serial based)
+    bool                hasCompass;         // Has a compass (NAZA)
+    void                (*restart)(void);   // Restart protocol driver thread
+    void                (*protocol)(void);  // Process protocol driver thread
 } gpsProviderDescriptor_t;
 
 // GPS public data
@@ -87,44 +77,40 @@ baudRate_e gpsToSerialBaudRate[GPS_BAUDRATE_COUNT] = { BAUD_115200, BAUD_57600, 
 static gpsProviderDescriptor_t  gpsProviders[GPS_PROVIDER_COUNT] = {
     /* NMEA GPS */
 #ifdef USE_GPS_PROTO_NMEA
-    { GPS_TYPE_SERIAL, MODE_RX, false, NULL, &gpsHandleNMEA },
+    { MODE_RX, false, &gpsRestartNMEA_MTK, &gpsHandleNMEA },
 #else
-    { GPS_TYPE_NA, 0, false,  NULL, NULL },
+    { 0, false,  NULL, NULL },
 #endif
 
     /* UBLOX binary */
 #ifdef USE_GPS_PROTO_UBLOX
-    { GPS_TYPE_SERIAL, MODE_RXTX, false,  NULL, &gpsHandleUBLOX },
+    { MODE_RXTX, false, &gpsRestartUBLOX, &gpsHandleUBLOX },
 #else
-    { GPS_TYPE_NA, 0, false,  NULL, NULL },
+    { 0, false,  NULL, NULL },
 #endif
 
-    /* MultiWii I2C-NAV module */
-#ifdef USE_GPS_PROTO_I2C_NAV
-    { GPS_TYPE_BUS, 0, false, &gpsDetectI2CNAV, &gpsHandleI2CNAV },
-#else
-    { GPS_TYPE_NA, 0, false,  NULL, NULL },
-#endif
+    /* Stub */
+    { 0, false,  NULL, NULL },
 
     /* NAZA GPS module */
 #ifdef USE_GPS_PROTO_NAZA
-    { GPS_TYPE_SERIAL, MODE_RX, true,  NULL, &gpsHandleNAZA },
+    { MODE_RX, true, &gpsRestartNAZA, &gpsHandleNAZA },
 #else
-    { GPS_TYPE_NA, 0, false,  NULL, NULL },
+    { 0, false,  NULL, NULL },
 #endif
 
     /* UBLOX7PLUS binary */
-#ifdef USE_GPS_PROTO_UBLOX_NEO7PLUS
-    { GPS_TYPE_SERIAL, MODE_RXTX, false,  NULL, &gpsHandleUBLOX },
+#ifdef USE_GPS_PROTO_UBLOX
+    { MODE_RXTX, false, &gpsRestartUBLOX, &gpsHandleUBLOX },
 #else
-    { GPS_TYPE_NA, 0, false,  NULL, NULL },
+    { 0, false,  NULL, NULL },
 #endif
 
     /* MTK GPS */
 #ifdef USE_GPS_PROTO_MTK
-    { GPS_TYPE_SERIAL, MODE_RXTX, false, NULL, &gpsHandleMTK },
+    { MODE_RXTX, false, &gpsRestartNMEA_MTK, &gpsHandleMTK },
 #else
-    { GPS_TYPE_NA, 0, false,  NULL, NULL },
+    { 0, false,  NULL, NULL },
 #endif
 
 };
@@ -137,7 +123,8 @@ PG_RESET_TEMPLATE(gpsConfig_t, gpsConfig,
     .autoConfig = GPS_AUTOCONFIG_ON,
     .autoBaud = GPS_AUTOBAUD_ON,
     .dynModel = GPS_DYNMODEL_AIR_1G,
-    .gpsMinSats = 6
+    .gpsMinSats = 6,
+    .ubloxUseGalileo = false
 );
 
 void gpsSetState(gpsState_e state)
@@ -153,44 +140,45 @@ static void gpsUpdateTime(void)
     }
 }
 
-static void gpsHandleProtocol(void)
+void gpsSetProtocolTimeout(timeMs_t timeoutMs)
 {
-    bool newDataReceived = false;
+    gpsState.lastLastMessageMs = gpsState.lastMessageMs;
+    gpsState.lastMessageMs = millis();
+    gpsState.timeoutMs = timeoutMs;
+}
 
-    // Call protocol-specific code
-    if (gpsProviders[gpsState.gpsConfig->provider].read) {
-        newDataReceived = gpsProviders[gpsState.gpsConfig->provider].read();
+void gpsProcessNewSolutionData(void)
+{
+    // Set GPS fix flag only if we have 3D fix
+    if (gpsSol.fixType == GPS_FIX_3D && gpsSol.numSat >= gpsConfig()->gpsMinSats) {
+        ENABLE_STATE(GPS_FIX);
+    }
+    else {
+        /* When no fix available - reset flags as well */
+        gpsSol.flags.validVelNE = 0;
+        gpsSol.flags.validVelD = 0;
+        gpsSol.flags.validEPE = 0;
+        DISABLE_STATE(GPS_FIX);
     }
 
-    // Received new update for solution data
-    if (newDataReceived) {
-        // Set GPS fix flag only if we have 3D fix
-        if (gpsSol.fixType == GPS_FIX_3D && gpsSol.numSat >= gpsConfig()->gpsMinSats) {
-            ENABLE_STATE(GPS_FIX);
-        }
-        else {
-            /* When no fix available - reset flags as well */
-            gpsSol.flags.validVelNE = 0;
-            gpsSol.flags.validVelD = 0;
-            gpsSol.flags.validEPE = 0;
+    // Set sensor as ready and available
+    sensorsSet(SENSOR_GPS);
 
-            DISABLE_STATE(GPS_FIX);
-        }
+    // Pass on GPS update to NAV and IMU
+    onNewGPSData();
 
-        // Update GPS coordinates etc
-        sensorsSet(SENSOR_GPS);
-        onNewGPSData();
+    // Update time
+    gpsUpdateTime();
 
-        // Update time
-        gpsUpdateTime();
+    // Update timeout
+    gpsSetProtocolTimeout(GPS_TIMEOUT);
 
-        // Update timeout
-        gpsState.lastLastMessageMs = gpsState.lastMessageMs;
-        gpsState.lastMessageMs = millis();
+    // Update statistics
+    gpsStats.lastMessageDt = gpsState.lastMessageMs - gpsState.lastLastMessageMs;
+    gpsSol.flags.hasNewData = true;
 
-        // Update statistics
-        gpsStats.lastMessageDt = gpsState.lastMessageMs - gpsState.lastLastMessageMs;
-    }
+    // Toggle heartbeat
+    gpsSol.flags.gpsHeartbeat = !gpsSol.flags.gpsHeartbeat;
 }
 
 static void gpsResetSolution(void)
@@ -217,66 +205,92 @@ void gpsInit(void)
 {
     gpsState.serialConfig = serialConfig();
     gpsState.gpsConfig = gpsConfig();
-    gpsState.baudrateIndex = 0;
 
     gpsStats.errors = 0;
     gpsStats.timeouts = 0;
 
+    // Reset solution, timeout and prepare to start
     gpsResetSolution();
-
-    // init gpsData structure. if we're not actually enabled, don't bother doing anything else
-    gpsState.autoConfigStep = 0;
-    gpsState.lastMessageMs = millis();
+    gpsSetProtocolTimeout(GPS_TIMEOUT);
     gpsSetState(GPS_UNKNOWN);
 
-    if (gpsProviders[gpsState.gpsConfig->provider].type == GPS_TYPE_BUS) {
-        gpsSetState(GPS_INITIALIZING);
+    // If given GPS provider has protocol() function not defined - we can't use it
+    if (!gpsProviders[gpsState.gpsConfig->provider].protocol) {
+        featureClear(FEATURE_GPS);
         return;
     }
 
-    if (gpsProviders[gpsState.gpsConfig->provider].type == GPS_TYPE_SERIAL) {
-        serialPortConfig_t * gpsPortConfig = findSerialPortConfig(FUNCTION_GPS);
-        if (!gpsPortConfig) {
-            featureClear(FEATURE_GPS);
-        }
-        else {
-            while (gpsToSerialBaudRate[gpsState.baudrateIndex] != gpsPortConfig->gps_baudrateIndex) {
-                gpsState.baudrateIndex++;
-                if (gpsState.baudrateIndex >= GPS_BAUDRATE_COUNT) {
-                    gpsState.baudrateIndex = 0;
-                    break;
-                }
-            }
+    serialPortConfig_t * gpsPortConfig = findSerialPortConfig(FUNCTION_GPS);
+    if (!gpsPortConfig) {
+        featureClear(FEATURE_GPS);
+        return;
+    }
 
-            portMode_t mode = gpsProviders[gpsState.gpsConfig->provider].portMode;
-
-            // no callback - buffer will be consumed in gpsThread()
-            gpsState.gpsPort = openSerialPort(gpsPortConfig->identifier, FUNCTION_GPS, NULL, NULL, baudRates[gpsToSerialBaudRate[gpsState.baudrateIndex]], mode, SERIAL_NOT_INVERTED);
-
-            if (!gpsState.gpsPort) {
-                featureClear(FEATURE_GPS);
-            }
-            else {
-                gpsSetState(GPS_INITIALIZING);
-                return;
-            }
+    // Start with baud rate index as configured for serial port
+    int baudrateIndex;
+    for (gpsState.baudrateIndex = 0, baudrateIndex = 0; baudrateIndex < GPS_BAUDRATE_COUNT; baudrateIndex++) {
+        if (gpsToSerialBaudRate[baudrateIndex] == gpsPortConfig->gps_baudrateIndex) {
+            gpsState.baudrateIndex = baudrateIndex;
+            break;
         }
     }
+
+    // Start with the same baud for autodetection
+    gpsState.autoBaudrateIndex = gpsState.baudrateIndex;
+
+    // Open serial port
+    portMode_t mode = gpsProviders[gpsState.gpsConfig->provider].portMode;
+    gpsState.gpsPort = openSerialPort(gpsPortConfig->identifier, FUNCTION_GPS, NULL, NULL, baudRates[gpsToSerialBaudRate[gpsState.baudrateIndex]], mode, SERIAL_NOT_INVERTED);
+
+    // Check if we have a serial port opened
+    if (!gpsState.gpsPort) {
+        featureClear(FEATURE_GPS);
+        return;
+    }
+
+    gpsSetState(GPS_INITIALIZING);
 }
 
 #ifdef USE_FAKE_GPS
-static void gpsFakeGPSUpdate(void)
+static bool gpsFakeGPSUpdate(void)
 {
-    if (millis() - gpsState.lastMessageMs > 100) {
+#define FAKE_GPS_INITIAL_LAT 509102311
+#define FAKE_GPS_INITIAL_LON -15349744
+#define FAKE_GPS_GROUND_ARMED_SPEED 350 // In cm/s
+#define FAKE_GPS_GROUND_UNARMED_SPEED 0
+#define FAKE_GPS_GROUND_COURSE_DECIDEGREES 300 //30deg
+
+    // Each degree in latitude corresponds to 111km.
+    // Each degree in longitude at the equator is 111km,
+    // going down to zero as latitude gets close to 90º.
+    // We approximate it linearly.
+
+    static int32_t lat = FAKE_GPS_INITIAL_LAT;
+    static int32_t lon = FAKE_GPS_INITIAL_LON;
+
+    timeMs_t now = millis();
+    uint32_t delta = now - gpsState.lastMessageMs;
+    if (delta > 100) {
+        int32_t speed = ARMING_FLAG(ARMED) ? FAKE_GPS_GROUND_ARMED_SPEED : FAKE_GPS_GROUND_UNARMED_SPEED;
+        int32_t cmDelta = speed * (delta / 1000.0f);
+        int32_t latCmDelta = cmDelta * cos_approx(DECIDEGREES_TO_RADIANS(FAKE_GPS_GROUND_COURSE_DECIDEGREES));
+        int32_t lonCmDelta = cmDelta * sin_approx(DECIDEGREES_TO_RADIANS(FAKE_GPS_GROUND_COURSE_DECIDEGREES));
+        int32_t latDelta = ceilf((float)latCmDelta / (111 * 1000 * 100 / 1e7));
+        int32_t lonDelta = ceilf((float)lonCmDelta / (111 * 1000 * 100 / 1e7));
+        if (speed > 0 && latDelta == 0 && lonDelta == 0) {
+            return false;
+        }
+        lat += latDelta;
+        lon += lonDelta;
         gpsSol.fixType = GPS_FIX_3D;
         gpsSol.numSat = 6;
-        gpsSol.llh.lat = 509102311;
-        gpsSol.llh.lon = -15349744;
+        gpsSol.llh.lat = lat;
+        gpsSol.llh.lon = lon;
         gpsSol.llh.alt = 0;
-        gpsSol.groundSpeed = 0;
-        gpsSol.groundCourse = 0;
-        gpsSol.velNED[X] = 0;
-        gpsSol.velNED[Y] = 0;
+        gpsSol.groundSpeed = speed;
+        gpsSol.groundCourse = FAKE_GPS_GROUND_COURSE_DECIDEGREES;
+        gpsSol.velNED[X] = speed * cos_approx(DECIDEGREES_TO_RADIANS(FAKE_GPS_GROUND_COURSE_DECIDEGREES));
+        gpsSol.velNED[Y] = speed * sin_approx(DECIDEGREES_TO_RADIANS(FAKE_GPS_GROUND_COURSE_DECIDEGREES));
         gpsSol.velNED[Z] = 0;
         gpsSol.flags.validVelNE = 1;
         gpsSol.flags.validVelD = 1;
@@ -296,27 +310,14 @@ static void gpsFakeGPSUpdate(void)
         gpsUpdateTime();
         onNewGPSData();
 
-        gpsState.lastLastMessageMs = gpsState.lastMessageMs;
-        gpsState.lastMessageMs = millis();
+        gpsSetProtocolTimeout(GPS_TIMEOUT);
 
         gpsSetState(GPS_RECEIVING_DATA);
+        return true;
     }
+    return false;
 }
 #endif
-
-// Finish baud rate change sequence - wait for TX buffer to empty and switch to the desired port speed
-void gpsFinalizeChangeBaud(void)
-{
-    if ((gpsProviders[gpsState.gpsConfig->provider].type == GPS_TYPE_SERIAL) && (gpsState.gpsPort != NULL)) {
-        // Wait for GPS_INIT_DELAY before switching to required baud rate
-        if ((millis() - gpsState.lastStateSwitchMs) >= GPS_BAUD_CHANGE_DELAY && isSerialTransmitBufferEmpty(gpsState.gpsPort)) {
-            // Switch to required serial port baud
-            serialSetBaudRate(gpsState.gpsPort, baudRates[gpsToSerialBaudRate[gpsState.baudrateIndex]]);
-            gpsState.lastMessageMs = millis();
-            gpsSetState(GPS_CHECK_VERSION);
-        }
-    }
-}
 
 uint16_t gpsConstrainEPE(uint32_t epe)
 {
@@ -328,119 +329,70 @@ uint16_t gpsConstrainHDOP(uint32_t hdop)
     return (hdop > 9999) ? 9999 : hdop; // max 99.99m error
 }
 
-void gpsThread(void)
+bool gpsUpdate(void)
 {
+    // Sanity check
+    if (!feature(FEATURE_GPS)) {
+        sensorsClear(SENSOR_GPS);
+        DISABLE_STATE(GPS_FIX);
+        return false;
+    }
+
     /* Extra delay for at least 2 seconds after booting to give GPS time to initialise */
     if (!isMPUSoftReset() && (millis() < GPS_BOOT_DELAY)) {
         sensorsClear(SENSOR_GPS);
         DISABLE_STATE(GPS_FIX);
-        return;
+        return false;
     }
 
 #ifdef USE_FAKE_GPS
-    gpsFakeGPSUpdate();
+    return gpsFakeGPSUpdate();
 #else
 
-    // Serial-based GPS
-    if ((gpsProviders[gpsState.gpsConfig->provider].type == GPS_TYPE_SERIAL) && (gpsState.gpsPort != NULL)) {
-        switch (gpsState.state) {
-        default:
-        case GPS_INITIALIZING:
-            if ((millis() - gpsState.lastStateSwitchMs) >= GPS_INIT_DELAY) {
-                // Reset internals
-                DISABLE_STATE(GPS_FIX);
-                gpsSol.fixType = GPS_NO_FIX;
+    // Assume that we don't have new data this run
+    gpsSol.flags.hasNewData = false;
 
-                gpsState.hwVersion = 0;
-                gpsState.autoConfigStep = 0;
-                gpsState.autoConfigPosition = 0;
-                gpsState.autoBaudrateIndex = 0;
-
-                // Reset solution
-                gpsResetSolution();
-
-                // Call protocol handler - switch to next state is done there
-                gpsHandleProtocol();
-            }
-            break;
-
-        case GPS_CHANGE_BAUD:
-            // Call protocol handler - switch to next state is done there
-            gpsHandleProtocol();
-            break;
-
-        case GPS_CHECK_VERSION:
-        case GPS_CONFIGURE:
-        case GPS_RECEIVING_DATA:
-            gpsHandleProtocol();
-            if ((millis() - gpsState.lastMessageMs) > GPS_TIMEOUT) {
-                // Check for GPS timeout
-                sensorsClear(SENSOR_GPS);
-                DISABLE_STATE(GPS_FIX);
-                gpsSol.fixType = GPS_NO_FIX;
-
-                gpsSetState(GPS_LOST_COMMUNICATION);
-            }
-            break;
-
-        case GPS_LOST_COMMUNICATION:
-            gpsStats.timeouts++;
-            // Handle autobaud - switch to next port baud rate
-            if (gpsState.gpsConfig->autoBaud != GPS_AUTOBAUD_OFF) {
-                gpsState.baudrateIndex++;
-                gpsState.baudrateIndex %= GPS_BAUDRATE_COUNT;
-            }
-            gpsSetState(GPS_INITIALIZING);
-            break;
-        }
-    }
-    // Driver-based GPS (I2C)
-    else if (gpsProviders[gpsState.gpsConfig->provider].type == GPS_TYPE_BUS) {
-        switch (gpsState.state) {
-        default:
-        case GPS_INITIALIZING:
-            // Detect GPS unit
-            if ((millis() - gpsState.lastStateSwitchMs) >= GPS_BUS_INIT_DELAY) {
-                gpsResetSolution();
-
-                if (gpsProviders[gpsState.gpsConfig->provider].detect && gpsProviders[gpsState.gpsConfig->provider].detect()) {
-                    gpsState.hwVersion = 0;
-                    gpsState.autoConfigStep = 0;
-                    gpsState.autoConfigPosition = 0;
-                    gpsState.lastMessageMs = millis();
-                    sensorsSet(SENSOR_GPS);
-                    gpsSetState(GPS_CHANGE_BAUD);
-                }
-                else {
-                    sensorsClear(SENSOR_GPS);
-                }
-            }
-            break;
-
-        case GPS_CHANGE_BAUD:
-        case GPS_CHECK_VERSION:
-        case GPS_CONFIGURE:
-        case GPS_RECEIVING_DATA:
-            gpsHandleProtocol();
-            if (millis() - gpsState.lastMessageMs > GPS_TIMEOUT) {
-                // remove GPS from capability
-                gpsSetState(GPS_LOST_COMMUNICATION);
-            }
-            break;
-
-        case GPS_LOST_COMMUNICATION:
-            // No valid data from GPS unit, cause re-init and re-detection
-            gpsStats.timeouts++;
+    switch (gpsState.state) {
+    default:
+    case GPS_INITIALIZING:
+        // Wait for GPS_INIT_DELAY before starting the GPS protocol thread
+        if ((millis() - gpsState.lastStateSwitchMs) >= GPS_INIT_DELAY) {
+            // Reset internals
             DISABLE_STATE(GPS_FIX);
             gpsSol.fixType = GPS_NO_FIX;
 
-            gpsSetState(GPS_INITIALIZING);
-            break;
+            // Reset solution
+            gpsResetSolution();
+
+            // Call GPS protocol reset handler
+            gpsProviders[gpsState.gpsConfig->provider].restart();
+
+            // Switch to GPS_RUNNING state (mind the timeout)
+            gpsSetProtocolTimeout(GPS_TIMEOUT);
+            gpsSetState(GPS_RUNNING);
         }
+        break;
+
+    case GPS_RUNNING:
+        // Call GPS protocol thread
+        gpsProviders[gpsState.gpsConfig->provider].protocol();
+
+        // Check for GPS timeout
+        if ((millis() - gpsState.lastMessageMs) > GPS_TIMEOUT) {
+            sensorsClear(SENSOR_GPS);
+            DISABLE_STATE(GPS_FIX);
+            gpsSol.fixType = GPS_NO_FIX;
+            gpsSetState(GPS_LOST_COMMUNICATION);
+        }
+        break;
+
+    case GPS_LOST_COMMUNICATION:
+        gpsStats.timeouts++;
+        gpsSetState(GPS_INITIALIZING);
+        break;
     }
-    else {
-        // GPS_TYPE_NA
-    }
+
+    return gpsSol.flags.hasNewData;
 #endif
 }
 
@@ -498,10 +450,11 @@ bool gpsMagRead(magDev_t *magDev)
 
 bool gpsMagDetect(magDev_t *mag)
 {
-    if (!(feature(FEATURE_GPS) && gpsProviders[gpsState.gpsConfig->provider].hasCompass))
+    if (!(feature(FEATURE_GPS) && gpsProviders[gpsState.gpsConfig->provider].hasCompass)) {
         return false;
+    }
 
-    if (gpsProviders[gpsState.gpsConfig->provider].type == GPS_TYPE_SERIAL && (!findSerialPortConfig(FUNCTION_GPS))) {
+    if (!gpsProviders[gpsState.gpsConfig->provider].protocol || !findSerialPortConfig(FUNCTION_GPS)) {
         return false;
     }
 
@@ -514,4 +467,10 @@ bool isGPSHealthy(void)
 {
     return true;
 }
+
+bool isGPSHeadingValid(void)
+{
+    return sensors(SENSOR_GPS) && STATE(GPS_FIX) && gpsSol.numSat >= 6 && gpsSol.groundSpeed >= 300;
+}
+
 #endif

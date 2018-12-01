@@ -60,7 +60,7 @@
 #define MSP_PROTOCOL_VERSION                0   // Same version over MSPv1 & MSPv2 - message format didn't change and it backward compatible
 
 #define API_VERSION_MAJOR                   2   // increment when major changes are made
-#define API_VERSION_MINOR                   1   // increment when any change is made, reset to zero when major changes are released after changing API_VERSION_MAJOR
+#define API_VERSION_MINOR                   2   // increment when any change is made, reset to zero when major changes are released after changing API_VERSION_MAJOR
 
 #define API_VERSION_LENGTH                  2
 
@@ -242,6 +242,9 @@
 
 #define MSP_DISPLAYPORT                 182
 
+#define MSP_SET_TX_INFO                 186 // in message           Used to send runtime information from TX lua scripts to the firmware
+#define MSP_TX_INFO                     187 // out message          Used by TX lua scripts to read information from the firmware
+
 //
 // Multwii original MSP commands
 //
@@ -324,4 +327,5 @@
 
 // MSPv2 includes
 #include "msp_protocol_v2_common.h"
+#include "msp_protocol_v2_sensor.h"
 #include "msp_protocol_v2_inav.h"

@@ -21,6 +21,7 @@
 #include <math.h>
 
 #include "platform.h"
+#include "build/debug.h"
 
 #include "common/axis.h"
 #include "common/filter.h"
@@ -33,19 +34,21 @@
 
 #include "drivers/accgyro/accgyro.h"
 #include "drivers/accgyro/accgyro_mpu.h"
+#include "drivers/accgyro/accgyro_mpu3050.h"
 #include "drivers/accgyro/accgyro_mpu6000.h"
 #include "drivers/accgyro/accgyro_mpu6050.h"
 #include "drivers/accgyro/accgyro_mpu6500.h"
 #include "drivers/accgyro/accgyro_mpu9250.h"
 
-#include "drivers/accgyro/accgyro_adxl345.h"
-#include "drivers/accgyro/accgyro_bma280.h"
-#include "drivers/accgyro/accgyro_fake.h"
+#include "drivers/accgyro/accgyro_lsm303dlhc.h"
 #include "drivers/accgyro/accgyro_l3g4200d.h"
 #include "drivers/accgyro/accgyro_l3gd20.h"
-#include "drivers/accgyro/accgyro_lsm303dlhc.h"
+#include "drivers/accgyro/accgyro_adxl345.h"
 #include "drivers/accgyro/accgyro_mma845x.h"
-#include "drivers/accgyro/accgyro_mpu3050.h"
+#include "drivers/accgyro/accgyro_bma280.h"
+#include "drivers/accgyro/accgyro_bmi160.h"
+#include "drivers/accgyro/accgyro_icm20689.h"
+#include "drivers/accgyro/accgyro_fake.h"
 #include "drivers/logging.h"
 #include "drivers/sensor.h"
 
@@ -73,12 +76,15 @@ STATIC_FASTRAM int32_t accADC[XYZ_AXIS_COUNT];
 
 STATIC_FASTRAM biquadFilter_t accFilter[XYZ_AXIS_COUNT];
 
+STATIC_FASTRAM pt1Filter_t accVibeFloorFilter[XYZ_AXIS_COUNT];
+STATIC_FASTRAM pt1Filter_t accVibeFilter[XYZ_AXIS_COUNT];
+
 #ifdef USE_ACC_NOTCH
 STATIC_FASTRAM filterApplyFnPtr accNotchFilterApplyFn;
 STATIC_FASTRAM void *accNotchFilter[XYZ_AXIS_COUNT];
 #endif
 
-PG_REGISTER_WITH_RESET_FN(accelerometerConfig_t, accelerometerConfig, PG_ACCELEROMETER_CONFIG, 1);
+PG_REGISTER_WITH_RESET_FN(accelerometerConfig_t, accelerometerConfig, PG_ACCELEROMETER_CONFIG, 2);
 
 void pgResetFn_accelerometerConfig(accelerometerConfig_t *instance)
 {
@@ -166,12 +172,8 @@ static bool accDetect(accDev_t *dev, accelerationSensor_e accHardwareToUse)
 
 #ifdef USE_ACC_MMA8452
     case ACC_MMA8452: // MMA8452
-#ifdef NAZE
-        // Not supported with this frequency
-        if (hardwareRevision < NAZE32_REV5 && mma8452Detect(dev)) {
-#else
+
         if (mma8452Detect(dev)) {
-#endif
 #ifdef ACC_MMA8452_ALIGN
             dev->accAlign = ACC_MMA8452_ALIGN;
 #endif
@@ -249,6 +251,39 @@ static bool accDetect(accDev_t *dev, accelerationSensor_e accHardwareToUse)
         FALLTHROUGH;
 #endif
 
+#if defined(USE_ACC_BMI160)
+    case ACC_BMI160:
+        if (bmi160AccDetect(dev)) {
+#ifdef ACC_BMI160_ALIGN
+            dev->accAlign = ACC_BMI160_ALIGN;
+#endif
+            accHardware = ACC_BMI160;
+            break;
+        }
+        /* If we are asked for a specific sensor - break out, otherwise - fall through and continue */
+        if (accHardwareToUse != ACC_AUTODETECT) {
+            break;
+        }
+        FALLTHROUGH;
+#endif
+
+#ifdef USE_ACC_ICM20689
+    case ACC_ICM20689:
+        if (icm20689AccDetect(dev)) {
+#ifdef ACC_ICM20689_ALIGN
+            dev->accAlign = ACC_ICM20689_ALIGN;
+#endif
+            accHardware = ACC_ICM20689;
+            break;
+        }
+        /* If we are asked for a specific sensor - break out, otherwise - fall through and continue */
+        if (accHardwareToUse != ACC_AUTODETECT) {
+            break;
+        }
+        FALLTHROUGH;
+#endif
+
+
 #ifdef USE_FAKE_ACC
     case ACC_FAKE:
         if (fakeAccDetect(dev)) {
@@ -297,6 +332,7 @@ bool accInit(uint32_t targetLooptime)
     acc.dev.acc_1G = 256; // set default
     acc.dev.initFn(&acc.dev);
     acc.accTargetLooptime = targetLooptime;
+    acc.accClipCount = 0;
     accInitFilters();
 
     if (accelerometerConfig()->acc_align != ALIGN_DEFAULT) {
@@ -325,40 +361,34 @@ static bool isOnFirstAccelerationCalibrationCycle(void)
     return calibratingA == CALIBRATING_ACC_CYCLES;
 }
 
-static sensorCalibrationState_t calState;
-static bool calibratedAxis[6];
+static bool calibratedPosition[6];
 static int32_t accSamples[6][3];
 static int  calibratedAxisCount = 0;
 
-bool accGetCalibrationAxisStatus(int axis)
-{
-    if (accIsCalibrationComplete()) {
-        if (STATE(ACCELEROMETER_CALIBRATED)) {
-            return true;    // if calibration is valid - all axis are calibrated
-        }
-        else {
-            return calibratedAxis[axis];
-        }
-    }
-    else {
-        return calibratedAxis[axis];
-    }
-}
-
 uint8_t accGetCalibrationAxisFlags(void)
 {
+    if (accIsCalibrationComplete() && STATE(ACCELEROMETER_CALIBRATED)) {
+        return 0x3F;    // All 6 bits are set
+    }
+
+    static const uint8_t bitMap[6] = { 0, 1, 3, 5, 2, 4 };      // A mapping of bits to match position indexes in Configurator
     uint8_t flags = 0;
     for (int i = 0; i < 6; i++) {
-        if (accGetCalibrationAxisStatus(0)) {
-            flags |= (1 << i);
+        if (calibratedPosition[i]) {
+            flags |= (1 << bitMap[i]);
         }
     }
 
     return flags;
 }
 
-int getPrimaryAxisIndex(int32_t sample[3])
+static int getPrimaryAxisIndex(int32_t accADCData[3])
 {
+    // Work on a copy so we don't mess with accADC data
+    int32_t sample[3];
+
+    applySensorAlignment(sample, accADCData, acc.dev.accAlign);
+
     // Tolerate up to atan(1 / 1.5) = 33 deg tilt (in worst case 66 deg separation between points)
     if ((ABS(sample[Z]) / 1.5f) > ABS(sample[X]) && (ABS(sample[Z]) / 1.5f) > ABS(sample[Y])) {
         //Z-axis
@@ -378,35 +408,38 @@ int getPrimaryAxisIndex(int32_t sample[3])
 
 static void performAcclerationCalibration(void)
 {
-    int axisIndex = getPrimaryAxisIndex(accADC);
+    int positionIndex = getPrimaryAxisIndex(accADC);
 
     // Check if sample is usable
-    if (axisIndex < 0) {
+    if (positionIndex < 0) {
         return;
     }
 
     // Top-up and first calibration cycle, reset everything
-    if (axisIndex == 0 && isOnFirstAccelerationCalibrationCycle()) {
+    if (positionIndex == 0 && isOnFirstAccelerationCalibrationCycle()) {
         for (int axis = 0; axis < 6; axis++) {
-            calibratedAxis[axis] = false;
+            calibratedPosition[axis] = false;
             accSamples[axis][X] = 0;
             accSamples[axis][Y] = 0;
             accSamples[axis][Z] = 0;
         }
 
         calibratedAxisCount = 0;
-        sensorCalibrationResetState(&calState);
         DISABLE_STATE(ACCELEROMETER_CALIBRATED);
     }
 
-    if (!calibratedAxis[axisIndex]) {
-        sensorCalibrationPushSampleForOffsetCalculation(&calState, accADC);
-        accSamples[axisIndex][X] += accADC[X];
-        accSamples[axisIndex][Y] += accADC[Y];
-        accSamples[axisIndex][Z] += accADC[Z];
+    if (!calibratedPosition[positionIndex]) {
+        accSamples[positionIndex][X] += accADC[X];
+        accSamples[positionIndex][Y] += accADC[Y];
+        accSamples[positionIndex][Z] += accADC[Z];
 
         if (isOnFinalAccelerationCalibrationCycle()) {
-            calibratedAxis[axisIndex] = true;
+            calibratedPosition[positionIndex] = true;
+
+            accSamples[positionIndex][X] = accSamples[positionIndex][X] / CALIBRATING_ACC_CYCLES;
+            accSamples[positionIndex][Y] = accSamples[positionIndex][Y] / CALIBRATING_ACC_CYCLES;
+            accSamples[positionIndex][Z] = accSamples[positionIndex][Z] / CALIBRATING_ACC_CYCLES;
+
             calibratedAxisCount++;
 
             beeperConfirmationBeeps(2);
@@ -414,10 +447,16 @@ static void performAcclerationCalibration(void)
     }
 
     if (calibratedAxisCount == 6) {
+        sensorCalibrationState_t calState;
         float accTmp[3];
-        int32_t accSample[3];
 
         /* Calculate offset */
+        sensorCalibrationResetState(&calState);
+
+        for (int axis = 0; axis < 6; axis++) {
+            sensorCalibrationPushSampleForOffsetCalculation(&calState, accSamples[axis]);
+        }
+
         sensorCalibrationSolveForOffset(&calState, accTmp);
 
         for (int axis = 0; axis < 3; axis++) {
@@ -428,9 +467,11 @@ static void performAcclerationCalibration(void)
         sensorCalibrationResetState(&calState);
 
         for (int axis = 0; axis < 6; axis++) {
-            accSample[X] = accSamples[axis][X] / CALIBRATING_ACC_CYCLES - accelerometerConfig()->accZero.raw[X];
-            accSample[Y] = accSamples[axis][Y] / CALIBRATING_ACC_CYCLES - accelerometerConfig()->accZero.raw[Y];
-            accSample[Z] = accSamples[axis][Z] / CALIBRATING_ACC_CYCLES - accelerometerConfig()->accZero.raw[Z];
+            int32_t accSample[3];
+
+            accSample[X] = accSamples[axis][X] - accelerometerConfig()->accZero.raw[X];
+            accSample[Y] = accSamples[axis][Y] - accelerometerConfig()->accZero.raw[Y];
+            accSample[Z] = accSamples[axis][Z] - accelerometerConfig()->accZero.raw[Z];
 
             sensorCalibrationPushSampleForScaleCalculation(&calState, axis / 2, accSample, acc.dev.acc_1G);
         }
@@ -454,42 +495,14 @@ static void applyAccelerationZero(const flightDynamicsTrims_t * accZero, const f
     accADC[Z] = (accADC[Z] - accZero->raw[Z]) * accGain->raw[Z] / 4096;
 }
 
-#ifdef USE_ASYNC_GYRO_PROCESSING
-STATIC_FASTRAM float accumulatedMeasurements[XYZ_AXIS_COUNT];
-STATIC_FASTRAM int   accumulatedMeasurementCount;
-
-static void accUpdateAccumulatedMeasurements(void)
-{
-    for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-        accumulatedMeasurements[axis] += acc.accADCf[axis];
-    }
-    accumulatedMeasurementCount++;
-}
-#endif
-
 /*
  * Calculate measured acceleration in body frame in g
  */
-void accGetMeasuredAcceleration(t_fp_vector *measuredAcc)
+void accGetMeasuredAcceleration(fpVector3_t *measuredAcc)
 {
-#ifdef USE_ASYNC_GYRO_PROCESSING
-    if (accumulatedMeasurementCount) {
-        for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-            measuredAcc->A[axis] = accumulatedMeasurements[axis] * GRAVITY_CMSS / accumulatedMeasurementCount;
-            accumulatedMeasurements[axis] = 0;
-        }
-        accumulatedMeasurementCount = 0;
-    }
-    else {
-        for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-            measuredAcc->A[axis] = acc.accADCf[axis] * GRAVITY_CMSS;
-        }
-    }
-#else
     for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-        measuredAcc->A[axis] = acc.accADCf[axis] * GRAVITY_CMSS;
+        measuredAcc->v[axis] = acc.accADCf[axis] * GRAVITY_CMSS;
     }
-#endif
 }
 
 void accUpdate(void)
@@ -508,12 +521,31 @@ void accUpdate(void)
     }
 
     applyAccelerationZero(&accelerometerConfig()->accZero, &accelerometerConfig()->accGain);
-    alignSensors(accADC, acc.dev.accAlign);
 
+    applySensorAlignment(accADC, accADC, acc.dev.accAlign);
+    applyBoardAlignment(accADC);
+
+    // Calculate acceleration readings in G's
     for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
         acc.accADCf[axis] = (float)accADC[axis] / acc.dev.acc_1G;
     }
 
+    // Before filtering check for clipping and vibration levels
+    if (ABS(acc.accADCf[X]) > ACC_CLIPPING_THRESHOLD_G || ABS(acc.accADCf[Y]) > ACC_CLIPPING_THRESHOLD_G || ABS(acc.accADCf[Z]) > ACC_CLIPPING_THRESHOLD_G) {
+        acc.accClipCount++;
+    }
+
+    // Calculate vibration levels
+    for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+        // filter accel at 5hz
+        const float accFloorFilt = pt1FilterApply(&accVibeFloorFilter[axis], acc.accADCf[axis]);
+
+        // calc difference from this sample and 5hz filtered value, square and filter at 2hz
+        const float accDiff = acc.accADCf[axis] - accFloorFilt;
+        acc.accVibeSq[axis] = pt1FilterApply(&accVibeFilter[axis], accDiff * accDiff);
+    }
+
+    // Filter acceleration
     if (accelerometerConfig()->acc_lpf_hz) {
         for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
             acc.accADCf[axis] = biquadFilterApply(&accFilter[axis], acc.accADCf[axis]);
@@ -528,9 +560,23 @@ void accUpdate(void)
     }
 #endif
 
-#ifdef USE_ASYNC_GYRO_PROCESSING
-    accUpdateAccumulatedMeasurements();
-#endif
+}
+
+void accGetVibrationLevels(fpVector3_t *accVibeLevels)
+{
+    accVibeLevels->x = sqrtf(acc.accVibeSq[X]);
+    accVibeLevels->y = sqrtf(acc.accVibeSq[Y]);
+    accVibeLevels->z = sqrtf(acc.accVibeSq[Z]);
+}
+
+float accGetVibrationLevel(void)
+{
+    return sqrtf(acc.accVibeSq[X] + acc.accVibeSq[Y] + acc.accVibeSq[Z]);
+}
+
+uint32_t accGetClipCount(void)
+{
+    return acc.accClipCount;
 }
 
 void accSetCalibrationValues(void)
@@ -550,6 +596,12 @@ void accInitFilters(void)
         for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
             biquadFilterInitLPF(&accFilter[axis], accelerometerConfig()->acc_lpf_hz, acc.accTargetLooptime);
         }
+    }
+
+    const float accDt = acc.accTargetLooptime * 1e-6f;
+    for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+        pt1FilterInit(&accVibeFloorFilter[axis], ACC_VIBE_FLOOR_FILT_HZ, accDt);
+        pt1FilterInit(&accVibeFilter[axis], ACC_VIBE_FILT_HZ, accDt);
     }
 
 #ifdef USE_ACC_NOTCH
