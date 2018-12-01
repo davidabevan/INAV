@@ -31,6 +31,9 @@
 // Status LED
 // #define LED0                    PC13
 
+// RGB Led Strip
+   #define USE_LED_STRIP
+   #define WS2811_PIN                PA2//Uses SA pad for Smart Audio TX2 to avoid conflict
 // Beeper
 #define BEEPER                  PC13
 #define BEEPER_INVERTED
@@ -49,13 +52,13 @@
 #define GYRO_MPU6000_ALIGN      CW90_DEG
 #define ACC_MPU6000_ALIGN       CW90_DEG
 
-#define USE_MAG
-#define MAG_I2C_BUS             BUS_I2C2
-#define USE_MAG_HMC5883
-#define USE_MAG_QMC5883
-#define USE_MAG_IST8310
-#define USE_MAG_MAG3110
-#define USE_MAG_LIS3MDL
+ #define USE_MAG
+ #define MAG_I2C_BUS             BUS_I2C2
+ #define USE_MAG_HMC5883
+ #define USE_MAG_QMC5883
+ #define USE_MAG_IST8310
+ #define USE_MAG_MAG3110
+ #define USE_MAG_LIS3MDL
 
 #define USE_BARO
 
